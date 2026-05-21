@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1000</width>
+    <height>650</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Git 章节管理</string>
+  </property>
+
+  <!-- 中央区域 -->
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="mainLayout">
+    <property name="spacing"><number>0</number></property>
+    <property name="leftMargin"><number>4</number></property>
+    <property name="topMargin"><number>4</number></property>
+    <property name="rightMargin"><number>4</number></property>
+    <property name="bottomMargin"><number>4</number></property>
+    <item>
+     <widget class="QSplitter" name="mainSplitter">
+      <property name="orientation"><enum>Qt::Horizontal</enum></property>
+      <property name="childrenCollapsible"><bool>false</bool></property>
+
+      <!-- ====== 左侧：章节面板 ====== -->
+      <widget class="QWidget" name="chapterPanel">
+       <layout class="QVBoxLayout" name="chapterLayout">
+        <property name="spacing"><number>6</number></property>
+        <property name="leftMargin"><number>4</number></property>
+        <property name="topMargin"><number>4</number></property>
+        <property name="rightMargin"><number>4</number></property>
+        <property name="bottomMargin"><number>4</number></property>
+        <item>
+         <widget class="QLabel" name="chapterTitleLabel">
+          <property name="text"><string>章节列表</string></property>
+          <property name="font"><font><bold>true</bold></font></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListView" name="chapterListView">
+          <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+          <property name="selectionMode"><enum>QAbstractItemView::SingleSelection</enum></property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="chapterBtnLayout">
+          <property name="spacing"><number>4</number></property>
+          <item><widget class="QPushButton" name="newChapterBtn"><property name="text"><string>新建</string></property></widget></item>
+          <item><widget class="QPushButton" name="renameChapterBtn"><property name="text"><string>重命名</string></property></widget></item>
+          <item><widget class="QPushButton" name="deleteChapterBtn"><property name="text"><string>删除</string></property></widget></item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+
+      <!-- ====== 右侧：Commit 历史面板 ====== -->
+      <widget class="QWidget" name="historyPanel">
+       <layout class="QVBoxLayout" name="historyLayout">
+        <property name="spacing"><number>0</number></property>
+        <property name="leftMargin"><number>4</number></property>
+        <property name="topMargin"><number>4</number></property>
+        <property name="rightMargin"><number>4</number></property>
+        <property name="bottomMargin"><number>4</number></property>
+
+        <!-- 标题 + 筛选 -->
+        <item>
+         <layout class="QHBoxLayout" name="historyHeaderLayout">
+          <property name="bottomMargin"><number>4</number></property>
+          <item><widget class="QLabel" name="historyTitleLabel"><property name="text"><string>Commit 历史</string></property><property name="font"><font><bold>true</bold></font></property></widget></item>
+          <item><spacer name="headerSpacer"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+          <item><widget class="QLabel" name="filterLabel"><property name="text"><string>筛选章节:</string></property></widget></item>
+          <item><widget class="QComboBox" name="filterCombo"/></item>
+         </layout>
+        </item>
+
+        <!-- ====== 垂直分割器：上方 Commit 列表 + 下方详情 ====== -->
+        <item>
+         <widget class="QSplitter" name="historySplitter">
+          <property name="orientation"><enum>Qt::Vertical</enum></property>
+          <property name="childrenCollapsible"><bool>false</bool></property>
+
+          <!-- 上半：Commit 列表 + 按钮 -->
+          <widget class="QWidget" name="commitListContainer">
+           <layout class="QVBoxLayout" name="commitListLayout">
+            <property name="spacing"><number>4</number></property>
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <item>
+             <widget class="QListView" name="commitListView">
+              <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
+              <property name="selectionMode"><enum>QAbstractItemView::SingleSelection</enum></property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="commitBtnLayout">
+              <item><widget class="QPushButton" name="commitBtn"><property name="text"><string>提交变更</string></property></widget></item>
+              <item><widget class="QPushButton" name="rollbackBtn"><property name="text"><string>回退章节到此版本</string></property><property name="enabled"><bool>false</bool></property></widget></item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+
+          <!-- 下半：Commit 详情 -->
+          <widget class="QWidget" name="commitDetailContainer">
+           <layout class="QVBoxLayout" name="commitDetailOuterLayout">
+            <property name="spacing"><number>0</number></property>
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <item>
+             <widget class="QLabel" name="commitDetailTitle">
+              <property name="text"><string>Commit 详情</string></property>
+              <property name="font"><font><bold>true</bold></font></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QScrollArea" name="detailScrollArea">
+              <property name="widgetResizable"><bool>true</bool></property>
+              <property name="frameShape"><enum>QFrame::StyledPanel</enum></property>
+              <widget class="QWidget" name="detailScrollContent">
+               <layout class="QVBoxLayout" name="detailContentLayout">
+                <property name="spacing"><number>10</number></property>
+                <property name="leftMargin"><number>8</number></property>
+                <property name="topMargin"><number>8</number></property>
+                <property name="rightMargin"><number>8</number></property>
+                <property name="bottomMargin"><number>8</number></property>
+
+                <!-- Row 0: Hash -->
+                <item>
+                 <layout class="QHBoxLayout" name="hashRowLayout">
+                  <property name="spacing"><number>8</number></property>
+                  <item>
+                   <widget class="QLabel" name="hashTitleLabel">
+                    <property name="text"><string>Hash:</string></property>
+                    <property name="minimumSize"><size><width>80</width><height>0</height></size></property>
+                    <property name="maximumSize"><size><width>80</width><height>16777215</height></size></property>
+                    <property name="alignment"><set>Qt::AlignRight|Qt::AlignTop</set></property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="hashLabel">
+                    <property name="font"><font><family>Consolas</family></font></property>
+                    <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+                    <property name="wordWrap"><bool>true</bool></property>
+                    <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Preferred"><horstretch>1</horstretch><verstretch>0</verstretch></sizepolicy></property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+
+                <!-- Row 1: 作者 -->
+                <item>
+                 <layout class="QHBoxLayout" name="authorRowLayout">
+                  <property name="spacing"><number>8</number></property>
+                  <item>
+                   <widget class="QLabel" name="authorTitleLabel">
+                    <property name="text"><string>作者:</string></property>
+                    <property name="minimumSize"><size><width>80</width><height>0</height></size></property>
+                    <property name="maximumSize"><size><width>80</width><height>16777215</height></size></property>
+                    <property name="alignment"><set>Qt::AlignRight|Qt::AlignTop</set></property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="authorLabel">
+                    <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+                    <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Preferred"><horstretch>1</horstretch><verstretch>0</verstretch></sizepolicy></property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+
+                <!-- Row 2: 时间 -->
+                <item>
+                 <layout class="QHBoxLayout" name="dateRowLayout">
+                  <property name="spacing"><number>8</number></property>
+                  <item>
+                   <widget class="QLabel" name="dateTitleLabel">
+                    <property name="text"><string>时间:</string></property>
+                    <property name="minimumSize"><size><width>80</width><height>0</height></size></property>
+                    <property name="maximumSize"><size><width>80</width><height>16777215</height></size></property>
+                    <property name="alignment"><set>Qt::AlignRight|Qt::AlignTop</set></property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="dateLabel">
+                    <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+                    <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Preferred"><horstretch>1</horstretch><verstretch>0</verstretch></sizepolicy></property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+
+                <!-- Row 3: Message -->
+                <item>
+                 <layout class="QHBoxLayout" name="messageRowLayout">
+                  <property name="spacing"><number>8</number></property>
+                  <item>
+                   <widget class="QLabel" name="messageTitleLabel">
+                    <property name="text"><string>Message:</string></property>
+                    <property name="minimumSize"><size><width>80</width><height>0</height></size></property>
+                    <property name="maximumSize"><size><width>80</width><height>16777215</height></size></property>
+                    <property name="alignment"><set>Qt::AlignRight|Qt::AlignTop</set></property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="messageLabel">
+                    <property name="wordWrap"><bool>true</bool></property>
+                    <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+                    <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Preferred"><horstretch>1</horstretch><verstretch>0</verstretch></sizepolicy></property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+
+                <!-- Row 4: 涉及文件 -->
+                <item>
+                 <layout class="QHBoxLayout" name="filesRowLayout">
+                  <property name="spacing"><number>8</number></property>
+                  <item>
+                   <widget class="QLabel" name="filesTitleLabel">
+                    <property name="text"><string>涉及文件:</string></property>
+                    <property name="minimumSize"><size><width>80</width><height>0</height></size></property>
+                    <property name="maximumSize"><size><width>80</width><height>16777215</height></size></property>
+                    <property name="alignment"><set>Qt::AlignRight|Qt::AlignTop</set></property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="filesLabel">
+                    <property name="wordWrap"><bool>true</bool></property>
+                    <property name="textInteractionFlags"><set>Qt::TextSelectableByMouse</set></property>
+                    <property name="sizePolicy"><sizepolicy hsizetype="Expanding" vsizetype="Preferred"><horstretch>1</horstretch><verstretch>0</verstretch></sizepolicy></property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+
+               </layout>
+              </widget>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+
+         </widget>
+        </item>
+       </layout>
+      </widget>
+
+     </widget>
+    </item>
+   </layout>
+  </widget>
+
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
