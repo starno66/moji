@@ -5,37 +5,57 @@ CommitDetailWidget::CommitDetailWidget(QObject *parent)
 {
 }
 
-void CommitDetailWidget::bind(QLabel *hashLabel,
-                               QLabel *authorLabel,
-                               QLabel *dateLabel,
-                               QLabel *messageLabel,
-                               QLabel *filesLabel)
+void CommitDetailWidget::bind(QTextBrowser *browser)
 {
-    m_hashLabel = hashLabel;
-    m_authorLabel = authorLabel;
-    m_dateLabel = dateLabel;
-    m_messageLabel = messageLabel;
-    m_filesLabel = filesLabel;
+    m_browser = browser;
+    if (m_browser) {
+        m_browser->document()->setDefaultStyleSheet(
+            "table { width: 100%; }"
+            "td.label { text-align: right; vertical-align: top; "
+            "           font-weight: bold; white-space: nowrap; "
+            "           padding-right: 12px; width: 70px; }"
+            "td.value { vertical-align: top; font-family: Consolas, monospace; "
+            "           word-wrap: break-word; white-space: pre-wrap; }"
+        );
+    }
 }
 
 void CommitDetailWidget::showCommit(const CommitInfo &info)
 {
-    if (!m_hashLabel) return;
+    if (!m_browser) return;
 
-    m_hashLabel->setText(info.hash);
-    m_authorLabel->setText(info.author);
-    m_dateLabel->setText(info.dateTime.toLocalTime().toString("yyyy-MM-dd hh:mm:ss"));
-    m_messageLabel->setText(info.message);
-    m_filesLabel->setText(info.files.join('\n'));
+    QString dateStr = info.dateTime.toLocalTime().toString("yyyy-MM-dd hh:mm:ss");
+    QString filesStr = info.files.join("<br>");
+
+    // 对 HTML 特殊字符转义
+    auto esc = [](const QString &s) {
+        return s.toHtmlEscaped();
+    };
+
+    QString html = QString(
+        "<table>"
+        "<tr><td class='label'>Hash:</td>"
+        "<td class='value'>%1</td></tr>"
+        "<tr><td class='label'>作者:</td>"
+        "<td class='value'>%2</td></tr>"
+        "<tr><td class='label'>时间:</td>"
+        "<td class='value'>%3</td></tr>"
+        "<tr><td class='label'>Message:</td>"
+        "<td class='value'>%4</td></tr>"
+        "<tr><td class='label'>涉及文件:</td>"
+        "<td class='value'>%5</td></tr>"
+        "</table>"
+    ).arg(esc(info.hash),
+          esc(info.author),
+          esc(dateStr),
+          esc(info.message),
+          esc(filesStr));
+
+    m_browser->setHtml(html);
 }
 
 void CommitDetailWidget::clear()
 {
-    if (!m_hashLabel) return;
-
-    m_hashLabel->clear();
-    m_authorLabel->clear();
-    m_dateLabel->clear();
-    m_messageLabel->clear();
-    m_filesLabel->clear();
+    if (m_browser)
+        m_browser->clear();
 }

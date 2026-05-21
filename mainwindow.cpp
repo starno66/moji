@@ -31,20 +31,38 @@ MainWindow::MainWindow(QWidget *parent)
     // 第1步：加载 Designer 设计的 UI
     ui->setupUi(this);
 
-    // 第2步：设置垂直分割器初始比例（列表 : 详情 = 3 : 2）
+    // 第2步：设置垂直分割器初始比例
     ui->historySplitter->setSizes({300, 200});
 
     // 第3步：初始化模型和按钮状态
     initModels();
     initDetailWidget();
 
-    // 第3步：用代码创建菜单栏
+    // 第4步：用代码创建菜单栏
     setupMenus();
 
-    // 第4步：连接所有信号槽
+    // 第5步：连接所有信号槽
     connectSignals();
 
-    // 第5步：恢复上次工作区
+    // 第6步：蓝色按钮风格
+    setStyleSheet(QString(
+        "QPushButton {"
+        "  background-color: #1A5CB5;"
+        "  color: white;"
+        "  border: none;"
+        "  border-radius: 4px;"
+        "  padding: 6px 16px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover { background-color: #154A91; }"
+        "QPushButton:pressed { background-color: #10386E; }"
+        "QPushButton:disabled {"
+        "  background-color: #7FA8D4;"
+        "  color: rgba(255,255,255,180);"
+        "}"
+    ));
+
+    // 第7步：恢复上次工作区
     QSettings settings;
     QString lastPath = settings.value("workspace/lastPath").toString();
     if (!lastPath.isEmpty() && QDir(lastPath + "/.git").exists()) {
@@ -91,18 +109,8 @@ void MainWindow::initModels()
 
 void MainWindow::initDetailWidget()
 {
-    /*
-     * 将 UI 文件中创建的 QLabel 指针，通过 bind() 交给 CommitDetailWidget 管理。
-     * 这样 CommitDetailWidget 不用 new 任何控件，直接操作 Designer 创建的控件。
-     */
     m_commitDetail = new CommitDetailWidget(this);
-    m_commitDetail->bind(
-        ui->hashLabel,
-        ui->authorLabel,
-        ui->dateLabel,
-        ui->messageLabel,
-        ui->filesLabel
-    );
+    m_commitDetail->bind(ui->commitDetailBrowser);
 }
 
 void MainWindow::setupMenus()
