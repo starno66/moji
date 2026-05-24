@@ -56,6 +56,12 @@ public:
     // 解析 git log 的原始输出
     static QList<CommitInfo> parseLogOutput(const QByteArray &output);
 
+    // 环境检测与配置（静态方法，不依赖工作区）
+    static bool isGitInstalled();                              // git --version
+    static bool installGit();                                  // winget install Git.Git
+    static bool configureUser(const QString &name,             // git config --global
+                              const QString &email);
+
 signals:
     // 发生错误时发出信号
     void errorOccurred(const QString &operation, const QString &errorDetail);

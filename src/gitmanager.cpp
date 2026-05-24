@@ -193,6 +193,56 @@ QList<CommitInfo> GitManager::parseLogOutput(const QByteArray &output)
     return result;
 }
 
+// ==================== 环境检测与配置 ====================
+
+bool GitManager::isGitInstalled()
+{
+    QProcess process;
+    process.start("git", {"--version"});
+    if (!process.waitForStarted(5000))
+        return false;
+    if (!process.waitForFinished(5000))
+        return false;
+    return process.exitCode() == 0;
+}
+
+bool GitManager::installGit()
+{
+#ifdef Q_OS_WIN
+    QProcess process;
+    // winget 是 Windows 10 1809+ 内置的包管理器
+    process.start("winget", {"install", "--id", "Git.Git", "-e",
+                             "--silent",
+                             "--accept-source-agreements",
+                             "--accept-package-agreements"});
+    if (!process.waitForStarted(10000))
+        return false;  // winget 不可用
+    if (!process.waitForFinished(300000)) {  // 5 分钟超时
+        process.kill();
+        return false;
+    }
+    return process.exitCode() == 0;
+#else
+    return false;  // 非 Windows 平台暂不支持自动安装
+#endif
+}
+
+bool GitManager::configureUser(const QString &name, const QString &email)
+{
+    QProcess process;
+
+    process.start("git", {"config", "--global", "user.name", name});
+    if (!process.waitForStarted(10000) || !process.waitForFinished(10000))
+        return false;
+    if (process.exitCode() != 0)
+        return false;
+
+    process.start("git", {"config", "--global", "user.email", email});
+    if (!process.waitForStarted(10000) || !process.waitForFinished(10000))
+        return false;
+    return process.exitCode() == 0;
+}
+
 // ==================== 核心：执行 Git 命令 ====================
 
 QByteArray GitManager::runGit(const QStringList &args, bool *ok, QString *errorMsg)

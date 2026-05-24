@@ -5,6 +5,7 @@
 #include "chapterlistmodel.h"
 #include "commitmodel.h"
 #include "commitdetailwidget.h"
+#include "environmentsetupdialog.h"
 
 #include <QFileDialog>      // 选择文件夹对话框
 #include <QInputDialog>     // 输入文本对话框
@@ -62,6 +63,20 @@ MainWindow::MainWindow(QWidget *parent)
         "}"
     ));
 
+    // 第6步：首次启动检测 Git 环境（在工作区恢复之前）
+    {
+        QSettings settings;
+        if (!settings.contains("setup/configured")) {
+            if (!GitManager::isGitInstalled()) {
+                EnvironmentSetupDialog wizard(this);
+                wizard.exec();
+            }
+            // 只有 Git 实际可用时才标记已配置，避免用户跳过向导后无法再次进入
+            if (GitManager::isGitInstalled())
+                settings.setValue("setup/configured", true);
+        }
+    }
+
     // 第7步：恢复上次工作区
     QSettings settings;
     QString lastPath = settings.value("workspace/lastPath").toString();
@@ -77,6 +92,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->renameChapterBtn->setEnabled(false);
     ui->deleteChapterBtn->setEnabled(false);
     ui->commitBtn->setEnabled(false);
+
 }
 
 /*
