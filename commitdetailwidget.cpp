@@ -1,9 +1,6 @@
 #include "commitdetailwidget.h"
 
-CommitDetailWidget::CommitDetailWidget(QObject *parent)
-    : QObject(parent)
-{
-}
+CommitDetailWidget::CommitDetailWidget(QObject *parent) : QObject(parent){}
 
 void CommitDetailWidget::bind(QTextBrowser *browser)
 {

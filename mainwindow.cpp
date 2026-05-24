@@ -229,7 +229,7 @@ bool MainWindow::openWorkspace(const QString &path)
     ui->newChapterBtn->setEnabled(true);
     ui->commitBtn->setEnabled(true);
 
-    setWindowTitle(QString("Git 章节管理 - %1").arg(path));
+    setWindowTitle(QString("墨迹 - %1").arg(path));
     statusBar()->showMessage(QString("已打开: %1").arg(path), 3000);
 
     // 持久化
