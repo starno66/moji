@@ -12,11 +12,15 @@ public:
     explicit CommitDetailWidget(QObject *parent = nullptr);
 
     void bind(QTextBrowser *browser);
+    void setCommitList(const QList<CommitInfo> &commits);
     void showCommit(const CommitInfo &info);
     void clear();
 
 private:
+    QString resolveMessage(const QString &message) const;
+
     QTextBrowser *m_browser = nullptr;
+    QList<CommitInfo> m_allCommits;
 };
 
 #endif // COMMITDETAILWIDGET_H

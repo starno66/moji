@@ -37,6 +37,7 @@ private slots:
     void onFilterChanged(int comboIndex);
     void onRollbackToCommit();
     void onCommitChanges();
+    void onPushToRemote();
 
     // ====== 文件监控 ======
     void onExternalFileChanged(const QString &path);

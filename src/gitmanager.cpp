@@ -1,6 +1,6 @@
 #include "gitmanager.h"
-#include <QProcess>
 #include <QDir>
+#include <QProcess>
 
 GitManager::GitManager(QObject *parent)
     : QObject(parent)
@@ -79,7 +79,8 @@ QList<CommitInfo> GitManager::log(const QString &folderFilter)
      *   ch02-方法/images/fig1.png
      */
 
-    QStringList args = {"log", "--format=%H|%an|%aI|%s", "--name-only"};
+    QStringList args = {"-c", "core.quotepath=false", "log",
+                        "--format=%H|%an|%aI|%s", "--name-only"};
     if (!folderFilter.isEmpty()) {
         // 只查影响该章节文件夹的 commit
         args << "--" << (folderFilter + "/*");
@@ -148,45 +149,103 @@ QString GitManager::currentBranch()
     return QString::fromUtf8(output).trimmed();
 }
 
+// ==================== 远程仓库 ====================
+
+bool GitManager::hasRemote() const
+{
+    QProcess process;
+    process.setWorkingDirectory(m_workspacePath);
+    process.start("git", {"remote", "get-url", "origin"});
+    process.waitForFinished(5000);
+    return process.exitCode() == 0;
+}
+
+bool GitManager::addRemote(const QString &url)
+{
+    QProcess process;
+    process.setWorkingDirectory(m_workspacePath);
+    process.start("git", {"remote", "add", "origin", url});
+    if (!process.waitForStarted(10000))
+        return false;
+    if (!process.waitForFinished(10000))
+        return false;
+    return process.exitCode() == 0;
+}
+
+bool GitManager::push(const QString &branch)
+{
+    QString b = branch.isEmpty() ? currentBranch() : branch;
+    QProcess process;
+    process.setWorkingDirectory(m_workspacePath);
+    process.start("git", {"push", "-u", "origin", b});
+    if (!process.waitForStarted(10000))
+        return false;
+    if (!process.waitForFinished(60000)) {
+        process.kill();
+        return false;
+    }
+    if (process.exitCode() != 0) {
+        emit errorOccurred("push", QString::fromUtf8(process.readAllStandardError()).trimmed());
+        return false;
+    }
+    return true;
+}
+
+bool GitManager::cloneRepo(const QString &url, const QString &targetPath)
+{
+    QProcess process;
+    process.start("git", {"clone", url, targetPath});
+    if (!process.waitForStarted(10000))
+        return false;
+    if (!process.waitForFinished(300000)) {
+        process.kill();
+        return false;
+    }
+    if (process.exitCode() != 0) {
+        emit errorOccurred("clone", QString::fromUtf8(process.readAllStandardError()).trimmed());
+        return false;
+    }
+    return true;
+}
+
 // ==================== 日志解析（静态方法） ====================
 
 QList<CommitInfo> GitManager::parseLogOutput(const QByteArray &output)
 {
     QList<CommitInfo> result;
-    QString text = QString::fromUtf8(output).trimmed();
+    QString text = QString::fromUtf8(output);
     if (text.isEmpty())
         return result;
+
+    text.replace("\r\n", "\n");
+    text.replace('\r', '\n');
 
     QStringList lines = text.split('\n');
     CommitInfo current;
 
     for (const QString &line : lines) {
-        if (line.isEmpty()) {
-            // 空行 = commit 分隔符，保存当前 commit 并准备下一个
+        QString t = line.trimmed();
+        if (t.isEmpty())
+            continue;  // 跳过空行（commit header 和文件列表之间有空行）
+
+        if (t.contains('|')) {
+            // 遇到新 commit header，先保存上一个 commit
             if (!current.hash.isEmpty()) {
                 result.append(current);
-                current = CommitInfo{};  // 重置为默认值
+                current = CommitInfo{};
             }
-            continue;
-        }
-
-        if (line.contains('|')) {
-            // 包含 | = commit 头行: hash|author|date|message
-            QStringList parts = line.split('|');
+            QStringList parts = t.split('|');
             if (parts.size() >= 4) {
                 current.hash = parts[0];
                 current.author = parts[1];
                 current.dateTime = QDateTime::fromString(parts[2], Qt::ISODate);
-                // message 可能包含 |，所以用 mid(3) 把剩余部分拼回去
                 current.message = parts.mid(3).join('|');
             }
         } else {
-            // 不包含 | = 文件路径行
-            current.files.append(line.trimmed());
+            current.files.append(t);
         }
     }
 
-    // 最后一个 commit（没有空行结尾时）
     if (!current.hash.isEmpty())
         result.append(current);
 

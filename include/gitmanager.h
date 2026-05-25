@@ -53,6 +53,12 @@ public:
     bool hasUncommittedChanges();     // 是否有未提交的变更
     QString currentBranch();          // 当前分支名
 
+    // 远程仓库
+    bool hasRemote() const;                  // 是否已配置 origin
+    bool addRemote(const QString &url);      // git remote add origin <url>
+    bool push(const QString &branch = {});   // git push -u origin <branch>
+    bool cloneRepo(const QString &url, const QString &targetPath); // git clone
+
     // 解析 git log 的原始输出
     static QList<CommitInfo> parseLogOutput(const QByteArray &output);
 

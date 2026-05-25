@@ -7,6 +7,7 @@
 #include "commitdetailwidget.h"
 #include "environmentsetupdialog.h"
 
+#include <QApplication>
 #include <QFileDialog>      // 选择文件夹对话框
 #include <QInputDialog>     // 输入文本对话框
 #include <QMessageBox>      // 消息提示框
@@ -44,24 +45,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 第5步：连接所有信号槽
     connectSignals();
-
-    // 第6步：蓝色按钮风格
-    setStyleSheet(QString(
-        "QPushButton {"
-        "  background-color: #1A5CB5;"
-        "  color: white;"
-        "  border: none;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "  font-weight: bold;"
-        "}"
-        "QPushButton:hover { background-color: #154A91; }"
-        "QPushButton:pressed { background-color: #10386E; }"
-        "QPushButton:disabled {"
-        "  background-color: #7FA8D4;"
-        "  color: rgba(255,255,255,180);"
-        "}"
-    ));
 
     // 第6步：首次启动检测 Git 环境（在工作区恢复之前）
     {
@@ -121,6 +104,7 @@ void MainWindow::initModels()
      */
     ui->chapterListView->setModel(m_chapterModel);
     ui->commitListView->setModel(m_commitModel);
+    ui->commitListView->setItemDelegate(new CommitDelegate(this));
 }
 
 void MainWindow::initDetailWidget()
@@ -156,6 +140,13 @@ void MainWindow::setupMenus()
 
     QAction *deleteAction = chapterMenu->addAction("删除章节(&D)");
     connect(deleteAction, &QAction::triggered, this, &MainWindow::onDeleteChapter);
+
+    // ---- 远程菜单 ----
+    QMenu *remoteMenu = menuBar()->addMenu("远程(&R)");
+
+    QAction *pushAction = remoteMenu->addAction("推送到远程仓库(&P)");
+    pushAction->setShortcut(QKeySequence("Ctrl+Shift+P"));
+    connect(pushAction, &QAction::triggered, this, &MainWindow::onPushToRemote);
 }
 
 void MainWindow::connectSignals()
@@ -202,12 +193,62 @@ void MainWindow::connectSignals()
 
 void MainWindow::onOpenWorkspace()
 {
-    // 弹出文件夹选择对话框
-    QString path = QFileDialog::getExistingDirectory(this, "选择工作区目录");
-    if (path.isEmpty())
-        return;
+    // 让用户选择：本地 or 远程
+    QStringList items;
+    items << "打开本地工作区" << "克隆远程仓库";
 
-    openWorkspace(path);
+    bool ok;
+    QString choice = QInputDialog::getItem(this, "打开工作区",
+        "请选择打开方式：", items, 0, false, &ok);
+    if (!ok) return;
+
+    if (choice == "打开本地工作区") {
+        QString path = QFileDialog::getExistingDirectory(this, "选择工作区目录");
+        if (path.isEmpty()) return;
+        openWorkspace(path);
+    } else {
+        // 输入远程链接
+        QString url = QInputDialog::getText(this, "克隆远程仓库",
+            "请输入远程仓库 HTTPS 链接：",
+            QLineEdit::Normal, "https://github.com/", &ok);
+        if (!ok || url.isEmpty() || url == "https://github.com/") return;
+
+        // 选择克隆到哪个目录
+        QString parentDir = QFileDialog::getExistingDirectory(this,
+            "选择克隆目标目录");
+        if (parentDir.isEmpty()) return;
+
+        // 从 URL 中提取仓库名
+        QString repoName = "repo";
+        int lastSlash = url.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            repoName = url.mid(lastSlash + 1);
+            if (repoName.endsWith(".git"))
+                repoName.chop(4);
+        }
+        QString targetPath = parentDir + "/" + repoName;
+
+        // 检查目标目录是否已存在
+        if (QDir(targetPath).exists()) {
+            QMessageBox::warning(this, "已存在",
+                QString("目录 \"%1\" 已存在，请选择其他位置。").arg(targetPath));
+            return;
+        }
+
+        // 克隆
+        statusBar()->showMessage("正在克隆远程仓库...");
+        QApplication::processEvents();
+
+        if (!m_gitManager->cloneRepo(url, targetPath)) {
+            QMessageBox::critical(this, "克隆失败",
+                "克隆失败，请检查链接和网络连接。");
+            statusBar()->clearMessage();
+            return;
+        }
+
+        statusBar()->showMessage("克隆成功，正在打开工作区...", 2000);
+        openWorkspace(targetPath);
+    }
 }
 
 bool MainWindow::openWorkspace(const QString &path)
@@ -426,12 +467,14 @@ void MainWindow::onRollbackToCommit()
     if (!idx.isValid()) return;
 
     CommitInfo info = m_commitModel->commitAt(idx.row());
+    QString seqNum = QString::number(idx.row() + 1);
+    QString targetHash = info.hash.left(7);
 
     // 二次确认
     auto answer = QMessageBox::question(this, "确认回退",
         QString("将章节 \"%1\" 回退到版本:\n\n[%2] %3\n\n"
                 "这将覆盖该章节文件夹中的所有文件，确定继续？")
-            .arg(m_currentChapter, info.hash.left(7), info.message),
+            .arg(m_currentChapter, seqNum, info.message),
         QMessageBox::Yes | QMessageBox::No);
     if (answer != QMessageBox::Yes) return;
 
@@ -441,14 +484,14 @@ void MainWindow::onRollbackToCommit()
         return;
     }
 
-    // 回退本身产生一次新 commit，方便追踪
+    // commit message 存 hash（永久可追溯），显示时由 model 动态翻译为当前序号
     m_gitManager->stageAndCommit(
-        QString("%1: 回退至 %2").arg(m_currentChapter, info.hash.left(7)));
+        QString("%1: 回退至 %2").arg(m_currentChapter, targetHash));
 
     refreshCommits();
     statusBar()->showMessage(
         QString("章节 \"%1\" 已回退到版本 %2")
-            .arg(m_currentChapter, info.hash.left(7)), 5000);
+            .arg(m_currentChapter, seqNum), 5000);
 }
 
 void MainWindow::onCommitChanges()
@@ -472,6 +515,44 @@ void MainWindow::onCommitChanges()
     } else {
         QMessageBox::critical(this, "提交失败",
             "提交失败，请检查状态栏错误信息");
+    }
+}
+
+// ==================== 远程推送 ==================== //
+
+void MainWindow::onPushToRemote()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::warning(this, "提示", "请先打开工作区");
+        return;
+    }
+
+    // 检查远程仓库是否已配置
+    if (!m_gitManager->hasRemote()) {
+        bool ok;
+        QString url = QInputDialog::getText(this, "配置远程仓库",
+            "该项目尚未关联远程仓库。\n请输入远程仓库 HTTPS 链接：",
+            QLineEdit::Normal, "https://github.com/", &ok);
+        if (!ok || url.isEmpty() || url == "https://github.com/")
+            return;
+
+        if (!m_gitManager->addRemote(url)) {
+            QMessageBox::critical(this, "配置失败",
+                "无法添加远程仓库，请检查链接是否正确。");
+            return;
+        }
+        statusBar()->showMessage("远程仓库已配置", 3000);
+    }
+
+    // 推送
+    statusBar()->showMessage("正在推送到远程仓库...");
+    QApplication::processEvents();
+
+    if (m_gitManager->push()) {
+        statusBar()->showMessage("推送成功", 5000);
+    } else {
+        QMessageBox::critical(this, "推送失败",
+            "推送失败，请检查网络连接和远程仓库权限。\n详情见状态栏。");
     }
 }
 
@@ -515,6 +596,7 @@ void MainWindow::refreshCommits()
 {
     if (m_workspacePath.isEmpty()) {
         m_commitModel->clear();
+        m_commitDetail->setCommitList({});
         return;
     }
 
@@ -527,6 +609,7 @@ void MainWindow::refreshCommits()
         commits = m_gitManager->log(filter);  // 只查该章节
     }
     m_commitModel->setCommits(commits);
+    m_commitDetail->setCommitList(commits);
 }
 
 void MainWindow::updateStatusBar()
