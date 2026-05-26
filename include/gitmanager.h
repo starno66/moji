@@ -50,7 +50,7 @@ public:
     bool removeFolder(const QString &relativePath);                   // git rm -r
 
     // 状态查询
-    bool hasUncommittedChanges();     // 是否有未提交的变更
+    bool hasUncommittedChanges(const QString &folder = {}); // 有未提交变更
     QString currentBranch();          // 当前分支名
 
     // 远程仓库
@@ -58,6 +58,14 @@ public:
     bool addRemote(const QString &url);      // git remote add origin <url>
     bool push(const QString &branch = {});   // git push -u origin <branch>
     bool cloneRepo(const QString &url, const QString &targetPath); // git clone
+
+    // 分支管理
+    QStringList listBranches();              // git branch → 分支名列表
+    QString mergeBase(const QString &a, const QString &b); // git merge-base
+    bool createBranch(const QString &name);  // git branch <name>
+    bool switchBranch(const QString &name);  // git switch <name>
+    bool mergeBranch(const QString &name);   // git merge <name>
+    bool deleteBranch(const QString &name);  // git branch -d <name>
 
     // 解析 git log 的原始输出
     static QList<CommitInfo> parseLogOutput(const QByteArray &output);

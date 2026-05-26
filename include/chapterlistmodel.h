@@ -25,11 +25,13 @@ public:
 
     // ====== 数据管理方法 ======
     void setChapters(const QStringList &chapters);  // 更新全部章节列表
+    void setDirtyChapters(const QSet<QString> &dirty); // 设置有未提交变更的章节
     QStringList chapters() const;                    // 获取当前章节列表
     QString chapterAt(int row) const;                // 获取指定行的章节名
 
 private:
-    QStringList m_chapters;  // 内部存储：章节名称列表
+    QStringList m_chapters;
+    QSet<QString> m_dirtyChapters;
 };
 
 #endif // CHAPTERLISTMODEL_H

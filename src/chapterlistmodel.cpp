@@ -1,4 +1,5 @@
 #include "chapterlistmodel.h"
+#include <QColor>
 
 ChapterListModel::ChapterListModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -7,7 +8,6 @@ ChapterListModel::ChapterListModel(QObject *parent)
 
 int ChapterListModel::rowCount(const QModelIndex &parent) const
 {
-    // 列表模型通常只有顶层行，所以 parent 有效时返回 0
     if (parent.isValid())
         return 0;
     return m_chapters.size();
@@ -15,28 +15,37 @@ int ChapterListModel::rowCount(const QModelIndex &parent) const
 
 QVariant ChapterListModel::data(const QModelIndex &index, int role) const
 {
-    // index 无效或超出范围 → 返回空
     if (!index.isValid() || index.row() < 0 || index.row() >= m_chapters.size())
         return {};
 
-    // 显示角色: 返回章节名称
+    QString name = m_chapters.at(index.row());
+
     if (role == Qt::DisplayRole) {
-        return m_chapters.at(index.row());
+        if (m_dirtyChapters.contains(name))
+            return name + "（有未提交的更改）";
+        return name;
     }
+
+    if (role == Qt::ForegroundRole && m_dirtyChapters.contains(name))
+        return QColor("#cf222e");
 
     return {};
 }
 
 void ChapterListModel::setChapters(const QStringList &chapters)
 {
-    /*
-     * beginResetModel() / endResetModel()
-     * 告诉 view "整个模型要刷新了"，view 会重新读取所有数据
-     * 如果不调用这两个函数，view 不知道数据变了
-     */
     beginResetModel();
     m_chapters = chapters;
     endResetModel();
+}
+
+void ChapterListModel::setDirtyChapters(const QSet<QString> &dirty)
+{
+    if (m_dirtyChapters == dirty) return;  // 无变化则跳过
+    m_dirtyChapters = dirty;
+    if (!m_chapters.isEmpty())
+        emit dataChanged(index(0), index(m_chapters.size() - 1),
+                         {Qt::DisplayRole, Qt::ForegroundRole});
 }
 
 QStringList ChapterListModel::chapters() const

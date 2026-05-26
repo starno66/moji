@@ -6,15 +6,21 @@
 #include "commitmodel.h"
 #include "commitdetailwidget.h"
 #include "environmentsetupdialog.h"
+#include "aidialog.h"
 
 #include <QApplication>
 #include <QFileDialog>      // 选择文件夹对话框
+#include <QProcess>
 #include <QInputDialog>     // 输入文本对话框
 #include <QMessageBox>      // 消息提示框
 #include <QSettings>        // 持久化存储（记住上次工作区）
+#include <QComboBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMenuBar>
+#include <QTimer>
 #include <QVBoxLayout>
 
 /*
@@ -39,12 +45,18 @@ MainWindow::MainWindow(QWidget *parent)
     // 第3步：初始化模型和按钮状态
     initModels();
     initDetailWidget();
+    initBranchBar();
 
     // 第4步：用代码创建菜单栏
     setupMenus();
 
     // 第5步：连接所有信号槽
     connectSignals();
+
+    // 定时轮询文件变更（QFileSystemWatcher 在 Windows 上不够可靠）
+    m_pollTimer = new QTimer(this);
+    m_pollTimer->setInterval(2000);
+    connect(m_pollTimer, &QTimer::timeout, this, &MainWindow::updateStatusBar);
 
     // 第6步：首次启动检测 Git 环境（在工作区恢复之前）
     {
@@ -113,6 +125,174 @@ void MainWindow::initDetailWidget()
     m_commitDetail->bind(ui->commitDetailBrowser);
 }
 
+void MainWindow::initBranchBar()
+{
+    // 分支栏作为独立行，插入到 historyLayout 中（标题行下方、分割器上方）
+    QVBoxLayout *historyLayout = ui->historyLayout;
+    if (!historyLayout) return;
+
+    // 创建分支栏水平布局
+    auto *branchBar = new QHBoxLayout();
+    branchBar->setContentsMargins(0, 2, 0, 4);
+
+    auto *branchLabel = new QLabel("当前分支:");
+    QFont boldFont = branchLabel->font();
+    boldFont.setBold(true);
+    branchLabel->setFont(boldFont);
+    branchBar->addWidget(branchLabel);
+
+    m_branchCombo = new QComboBox();
+    m_branchCombo->setObjectName("branchCombo");
+    m_branchCombo->setMinimumWidth(300);
+    m_branchCombo->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    branchBar->addWidget(m_branchCombo);
+
+    m_newBranchBtn = new QPushButton("新建分支");
+    branchBar->addWidget(m_newBranchBtn);
+
+    branchBar->addSpacing(8);
+
+    m_mergeBtn = new QPushButton("合并到当前");
+    branchBar->addWidget(m_mergeBtn);
+
+    branchBar->addStretch();
+
+    // 插入到 header 和 splitter 之间（索引 1）
+    historyLayout->insertLayout(1, branchBar);
+}
+
+void MainWindow::refreshBranches()
+{
+    if (m_workspacePath.isEmpty()) return;
+
+    m_branchCombo->blockSignals(true);
+    m_branchCombo->clear();
+
+    QStringList branches = m_gitManager->listBranches();
+    for (const QString &b : branches)
+        m_branchCombo->addItem(b);
+
+    // 选中当前分支
+    m_currentBranch = m_gitManager->currentBranch();
+    int idx = m_branchCombo->findText(m_currentBranch);
+    if (idx >= 0) m_branchCombo->setCurrentIndex(idx);
+
+    m_branchCombo->blockSignals(false);
+    CommitDelegate::setCurrentBranch(m_currentBranch);
+    // 获取当前分支独有 commit 的 hash 集合
+    if (m_currentBranch != "main") {
+        QString mb = m_gitManager->mergeBase(m_currentBranch, "main");
+        if (!mb.isEmpty()) {
+            QProcess proc;
+            proc.setWorkingDirectory(m_workspacePath);
+            proc.start("git",
+                {"log", "--format=%H", QString("%1..HEAD").arg(mb.left(7))});
+            if (proc.waitForFinished(10000) && proc.exitCode() == 0) {
+                CommitDelegate::setBranchOnlyHashes(
+                    QString::fromUtf8(proc.readAllStandardOutput())
+                        .split('\n', Qt::SkipEmptyParts));
+            }
+        }
+    } else {
+        CommitDelegate::setBranchOnlyHashes({});
+    }
+}
+
+void MainWindow::onCreateBranch()
+{
+    if (m_workspacePath.isEmpty()) return;
+
+    bool ok;
+    QString name = QInputDialog::getText(this, "新建分支",
+        "请输入分支名称（例如 feedback-张三）:",
+        QLineEdit::Normal, "", &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    name = name.trimmed().replace(' ', '-');
+    if (!m_gitManager->createBranch(name)) {
+        QMessageBox::critical(this, "错误", "创建分支失败");
+        return;
+    }
+
+    if (!m_gitManager->switchBranch(name)) {
+        QMessageBox::critical(this, "错误", "切换分支失败");
+        return;
+    }
+
+    refreshBranches();
+    refreshCommits();
+    updateStatusBar();
+    statusBar()->showMessage(QString("已创建并切换到分支: %1").arg(name), 3000);
+}
+
+void MainWindow::onSwitchBranch()
+{
+    if (m_workspacePath.isEmpty() || !m_branchCombo) return;
+
+    QString target = m_branchCombo->currentText();
+    if (target.isEmpty() || target == m_currentBranch) return;
+
+    if (!m_gitManager->switchBranch(target)) {
+        QMessageBox::critical(this, "错误",
+            QString("无法切换到分支 %1，请先处理未提交的变更").arg(target));
+        refreshBranches();
+        return;
+    }
+
+    refreshBranches();
+    refreshCommits();
+    updateStatusBar();
+    statusBar()->showMessage(QString("已切换到分支: %1").arg(target), 3000);
+}
+
+void MainWindow::onMergeBranch()
+{
+    if (m_workspacePath.isEmpty()) return;
+
+    // 列出所有非当前分支
+    QStringList branches = m_gitManager->listBranches();
+    branches.removeAll(m_gitManager->currentBranch());
+    if (branches.isEmpty()) {
+        QMessageBox::information(this, "提示", "没有可合并的分支");
+        return;
+    }
+
+    bool ok;
+    QString source = QInputDialog::getItem(this, "合并分支",
+        "选择要合并到当前分支的分支:", branches, 0, false, &ok);
+    if (!ok) return;
+
+    auto answer = QMessageBox::question(this, "确认合并",
+        QString("将 \"%1\" 合并到 \"%2\"，确定继续？")
+            .arg(source, m_gitManager->currentBranch()),
+        QMessageBox::Yes | QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+
+    if (!m_gitManager->mergeBranch(source)) {
+        QMessageBox::critical(this, "合并失败", "合并失败，可能存在冲突需要手动处理");
+        return;
+    }
+
+    refreshCommits();
+    updateStatusBar();
+    statusBar()->showMessage(QString("已合并 %1 到当前分支").arg(source), 5000);
+
+    // 询问是否删除已合并的分支
+    auto delAnswer = QMessageBox::question(this, "删除分支",
+        QString("合并完成。是否删除分支 \"%1\"？").arg(source),
+        QMessageBox::Yes | QMessageBox::No);
+    if (delAnswer == QMessageBox::Yes) {
+        if (m_gitManager->deleteBranch(source)) {
+            refreshBranches();
+            statusBar()->showMessage(
+                QString("已删除分支: %1").arg(source), 3000);
+        } else {
+            QMessageBox::warning(this, "删除失败",
+                QString("无法删除分支 %1").arg(source));
+        }
+    }
+}
+
 void MainWindow::setupMenus()
 {
     // ---- 文件菜单 ----
@@ -147,6 +327,37 @@ void MainWindow::setupMenus()
     QAction *pushAction = remoteMenu->addAction("推送到远程仓库(&P)");
     pushAction->setShortcut(QKeySequence("Ctrl+Shift+P"));
     connect(pushAction, &QAction::triggered, this, &MainWindow::onPushToRemote);
+
+    // ---- AI 菜单 ----
+    QMenu *aiMenu = menuBar()->addMenu("AI(&A)");
+
+    QAction *aiAction = aiMenu->addAction("AI 写作助手(&C)");
+    aiAction->setShortcut(QKeySequence("Ctrl+I"));
+    connect(aiAction, &QAction::triggered, this, [this]() {
+        if (!m_aiDialog) {
+            m_aiDialog = new AiDialog(this);
+            m_aiDialog->setWindowFlags(Qt::Window);
+            connect(m_aiDialog, &QDialog::destroyed, this, [this]() {
+                m_aiDialog = nullptr;
+            });
+        }
+        // 传递当前 commit 历史作为上下文
+        if (m_commitModel->rowCount() > 0) {
+            QStringList ctx;
+            for (int i = 0; i < m_commitModel->rowCount(); ++i) {
+                CommitInfo ci = m_commitModel->commitAt(i);
+                ctx.append(QString("[%1] %2 | %3 | %4")
+                    .arg(i + 1)
+                    .arg(ci.dateTime.toLocalTime().toString("yyyy-MM-dd hh:mm"))
+                    .arg(ci.message)
+                    .arg(ci.files.join(", ")));
+            }
+            m_aiDialog->setCommitContext(ctx.join('\n'));
+        }
+        m_aiDialog->show();
+        m_aiDialog->raise();
+        m_aiDialog->activateWindow();
+    });
 }
 
 void MainWindow::connectSignals()
@@ -187,6 +398,21 @@ void MainWindow::connectSignals()
     // 文件变更 → 更新状态栏
     connect(m_fileWatcher, &FileWatcher::fileChanged,
             this, &MainWindow::onExternalFileChanged);
+
+    // 分支栏
+    connect(m_newBranchBtn, &QPushButton::clicked,
+            this, &MainWindow::onCreateBranch);
+    connect(m_branchCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int){ onSwitchBranch(); });
+    connect(m_mergeBtn, &QPushButton::clicked,
+            this, &MainWindow::onMergeBranch);
+}
+
+QString MainWindow::branchTaggedMessage(const QString &base) const
+{
+    if (m_currentBranch != "main")
+        return QString("%1（来自\"%2\"）").arg(base, m_currentBranch);
+    return base;
 }
 
 // ==================== 文件菜单 ==================== //
@@ -273,13 +499,16 @@ bool MainWindow::openWorkspace(const QString &path)
     m_workspacePath = path;
     m_currentChapter.clear();
     m_commitDetail->clear();
+    m_commitDetail->setWorkspacePath(path);
 
     // 启动文件监控
     m_fileWatcher->watchWorkspace(path);
+    m_pollTimer->start();
 
     // 刷新 UI
     refreshChapters();
     refreshCommits();
+    refreshBranches();
     updateStatusBar();
 
     // 启用按钮
@@ -348,7 +577,8 @@ void MainWindow::onCreateChapter()
     placeholder.close();
 
     // 提交
-    m_gitManager->stageAndCommit(QString("%1: 新建章节").arg(name));
+    m_gitManager->stageAndCommit(
+        branchTaggedMessage(QString("%1: 新建章节").arg(name)));
 
     refreshChapters();
     refreshCommits();
@@ -379,7 +609,8 @@ void MainWindow::onRenameChapter()
         return;
     }
 
-    m_gitManager->commit(QString("%1: 重命名自 %2").arg(newName, m_currentChapter));
+    m_gitManager->commit(
+        branchTaggedMessage(QString("%1: 重命名自 %2").arg(newName, m_currentChapter)));
     m_currentChapter = newName;
 
     refreshChapters();
@@ -401,7 +632,8 @@ void MainWindow::onDeleteChapter()
         return;
     }
 
-    m_gitManager->commit(QString("%1: 删除章节").arg(m_currentChapter));
+    m_gitManager->commit(
+        branchTaggedMessage(QString("%1: 删除章节").arg(m_currentChapter)));
 
     m_currentChapter.clear();
     m_commitDetail->clear();
@@ -486,9 +718,12 @@ void MainWindow::onRollbackToCommit()
 
     // commit message 存 hash（永久可追溯），显示时由 model 动态翻译为当前序号
     m_gitManager->stageAndCommit(
-        QString("%1: 回退至 %2").arg(m_currentChapter, targetHash));
+        branchTaggedMessage(QString("%1: 回退至 %2").arg(m_currentChapter, targetHash)));
 
+    refreshChapters();
     refreshCommits();
+    updateStatusBar();
+    ui->chapterListView->viewport()->repaint();
     statusBar()->showMessage(
         QString("章节 \"%1\" 已回退到版本 %2")
             .arg(m_currentChapter, seqNum), 5000);
@@ -509,8 +744,11 @@ void MainWindow::onCommitChanges()
         "Commit Message:", QLineEdit::Normal, "更新内容", &ok);
     if (!ok || msg.isEmpty()) return;
 
-    if (m_gitManager->stageAndCommit(msg)) {
+    if (m_gitManager->stageAndCommit(branchTaggedMessage(msg))) {
+        refreshChapters();
         refreshCommits();
+        updateStatusBar();
+        ui->chapterListView->viewport()->repaint();
         statusBar()->showMessage("提交成功", 3000);
     } else {
         QMessageBox::critical(this, "提交失败",
@@ -561,6 +799,7 @@ void MainWindow::onPushToRemote()
 void MainWindow::onExternalFileChanged(const QString &path)
 {
     Q_UNUSED(path);
+    refreshChapters();
     updateStatusBar();
 }
 
@@ -586,7 +825,6 @@ void MainWindow::refreshChapters()
     for (const QString &chapter : entries) {
         ui->filterCombo->addItem(chapter, chapter);
     }
-    // 恢复之前选中的筛选项
     int idx = ui->filterCombo->findData(currentFilter);
     if (idx >= 0) ui->filterCombo->setCurrentIndex(idx);
     ui->filterCombo->blockSignals(false);
@@ -610,6 +848,22 @@ void MainWindow::refreshCommits()
     }
     m_commitModel->setCommits(commits);
     m_commitDetail->setCommitList(commits);
+
+    // 更新分支独有 hash 集合，保持红色标识实时
+    if (m_currentBranch != "main") {
+        QString mb = m_gitManager->mergeBase(m_currentBranch, "main");
+        if (!mb.isEmpty()) {
+            QProcess proc;
+            proc.setWorkingDirectory(m_workspacePath);
+            proc.start("git", {"log", "--format=%H",
+                QString("%1..HEAD").arg(mb.left(7))});
+            if (proc.waitForFinished(10000) && proc.exitCode() == 0) {
+                CommitDelegate::setBranchOnlyHashes(
+                    QString::fromUtf8(proc.readAllStandardOutput())
+                        .split('\n', Qt::SkipEmptyParts));
+            }
+        }
+    }
 }
 
 void MainWindow::updateStatusBar()
@@ -620,8 +874,26 @@ void MainWindow::updateStatusBar()
     }
 
     QString branch = m_gitManager->currentBranch();
-    bool dirty = m_gitManager->hasUncommittedChanges();
+    QString filter = ui->filterCombo->currentData().toString();
+    bool dirty = filter.isEmpty()
+        ? m_gitManager->hasUncommittedChanges()
+        : m_gitManager->hasUncommittedChanges(filter);
     int chapterCount = m_chapterModel->rowCount();
+
+    // 扫描目录检测每个章节的未提交状态
+    QSet<QString> dirtySet;
+    QDir wsDir(m_workspacePath);
+    QStringList dirs = wsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &d : dirs) {
+        if (d == ".git") continue;
+        if (m_gitManager->hasUncommittedChanges(d))
+            dirtySet.insert(d);
+    }
+    m_chapterModel->setDirtyChapters(dirtySet);
+
+    ui->commitBtn->setText(dirty
+        ? "提交变更（有未提交的更改）"
+        : "提交变更");
 
     QString msg = QString("工作区: %1 | 分支: %2 | %3 | 章节数: %4")
         .arg(m_workspacePath,

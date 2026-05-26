@@ -127,15 +127,13 @@ bool GitManager::removeFolder(const QString &relativePath)
 
 // ==================== 状态查询 ====================
 
-bool GitManager::hasUncommittedChanges()
+bool GitManager::hasUncommittedChanges(const QString &folder)
 {
-    /*
-     * git status --porcelain
-     * 如果有未提交的变更，会输出变更列表
-     * 没有变更则输出为空
-     */
+    QStringList args = {"status", "--porcelain"};
+    if (!folder.isEmpty())
+        args << "--" << folder;
     bool ok;
-    QByteArray output = runGit({"status", "--porcelain"}, &ok);
+    QByteArray output = runGit(args, &ok);
     if (!ok) return false;
     return !output.trimmed().isEmpty();
 }
@@ -206,6 +204,58 @@ bool GitManager::cloneRepo(const QString &url, const QString &targetPath)
         return false;
     }
     return true;
+}
+
+// ==================== 分支管理 ====================
+
+QStringList GitManager::listBranches()
+{
+    bool ok;
+    QByteArray output = runGit({"branch"}, &ok);
+    if (!ok) return {};
+
+    QStringList branches;
+    for (const QString &line : QString::fromUtf8(output).split('\n')) {
+        QString name = line.trimmed();
+        if (name.startsWith('*')) name = name.mid(1).trimmed();  // 去掉当前标记 *
+        if (!name.isEmpty()) branches.append(name);
+    }
+    return branches;
+}
+
+bool GitManager::createBranch(const QString &name)
+{
+    bool ok;
+    runGit({"branch", name}, &ok);
+    return ok;
+}
+
+bool GitManager::switchBranch(const QString &name)
+{
+    bool ok;
+    runGit({"switch", name}, &ok);
+    return ok;
+}
+
+bool GitManager::mergeBranch(const QString &name)
+{
+    bool ok;
+    runGit({"merge", name}, &ok);
+    return ok;
+}
+
+bool GitManager::deleteBranch(const QString &name)
+{
+    bool ok;
+    runGit({"branch", "-d", name}, &ok);
+    return ok;
+}
+
+QString GitManager::mergeBase(const QString &a, const QString &b)
+{
+    bool ok;
+    QByteArray output = runGit({"merge-base", a, b}, &ok);
+    return ok ? QString::fromUtf8(output).trimmed() : QString();
 }
 
 // ==================== 日志解析（静态方法） ====================

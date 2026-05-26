@@ -23,7 +23,7 @@ private:
     QList<CommitInfo> m_commits;
 };
 
-// 自定义 delegate：将 [N] 序号部分加粗显示
+// 自定义 delegate：序号加粗，非 main 分支红色文字
 class CommitDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
@@ -31,6 +31,11 @@ public:
     using QStyledItemDelegate::QStyledItemDelegate;
     void paint(QPainter *painter, const QStyleOptionViewItem &option,
                const QModelIndex &index) const override;
+    static void setCurrentBranch(const QString &branch) { s_currentBranch = branch; }
+    static void setBranchOnlyHashes(const QStringList &hashes) { s_branchOnlyHashes = hashes; }
+private:
+    static QString s_currentBranch;
+    static QStringList s_branchOnlyHashes;
 };
 
 #endif // COMMITMODEL_H

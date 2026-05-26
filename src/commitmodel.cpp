@@ -70,34 +70,50 @@ void CommitModel::clear()
 
 // ==================== CommitDelegate ====================
 
+QString CommitDelegate::s_currentBranch = "main";
+QStringList CommitDelegate::s_branchOnlyHashes;
+
 void CommitDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                            const QModelIndex &index) const
 {
     QString text = index.data(Qt::DisplayRole).toString();
 
-    // 准备样式选项，文本置空以便只绘制背景
     QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
     opt.text.clear();
 
-    // 只绘制背景（选中态、hover、焦点框等）
     QApplication::style()->drawControl(QStyle::CE_ItemViewItem, &opt, painter, nullptr);
+
+    painter->setRenderHint(QPainter::TextAntialiasing, true);
 
     if (text.isEmpty()) return;
 
-    // 分割 [N] 和剩余部分
+    // 非 main 分支：hash 在分支独有集合中的标红
+    QColor textColor = opt.palette.text().color();
+    if (s_currentBranch != "main" && !s_branchOnlyHashes.isEmpty()) {
+        const CommitModel *model = static_cast<const CommitModel *>(index.model());
+        CommitInfo ci = model->commitAt(index.row());
+        QString hash7 = ci.hash.left(7);
+        for (const QString &h : s_branchOnlyHashes) {
+            if (h.startsWith(hash7) || hash7 == h.left(7)) {
+                textColor = QColor("#cf222e");
+                break;
+            }
+        }
+    }
+
     int bracketEnd = text.indexOf(']');
     if (bracketEnd == -1) {
         painter->save();
-        painter->setPen(opt.palette.text().color());
+        painter->setPen(textColor);
         painter->drawText(opt.rect.adjusted(4, 0, -4, 0),
                           Qt::AlignLeft | Qt::AlignVCenter, text);
         painter->restore();
         return;
     }
 
-    QString prefix = text.left(bracketEnd + 1);   // "[N]"
-    QString suffix = text.mid(bracketEnd + 1);     // 剩余文字
+    QString prefix = text.left(bracketEnd + 1);
+    QString suffix = text.mid(bracketEnd + 1);
 
     QFont boldFont = opt.font;
     boldFont.setBold(true);
@@ -106,17 +122,13 @@ void CommitDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
     int prefixWidth = QFontMetrics(boldFont).horizontalAdvance(prefix);
 
     painter->save();
-    painter->setPen(opt.palette.text().color());
-
-    // 加粗序号
+    painter->setPen(textColor);
     painter->setFont(boldFont);
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, prefix);
 
-    // 剩余部分正常字重
     textRect.setLeft(textRect.left() + prefixWidth);
     painter->setFont(opt.font);
     QString elided = opt.fontMetrics.elidedText(suffix, Qt::ElideRight, textRect.width());
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
-
     painter->restore();
 }

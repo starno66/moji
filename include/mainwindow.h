@@ -3,12 +3,15 @@
 
 #include <QMainWindow>
 
-// 前置声明，避免头文件循环依赖
 class GitManager;
 class FileWatcher;
 class ChapterListModel;
 class CommitModel;
+class AiDialog;
 class CommitDetailWidget;
+class QComboBox;
+class QPushButton;
+class QTimer;
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -39,6 +42,11 @@ private slots:
     void onCommitChanges();
     void onPushToRemote();
 
+    // ====== 分支管理 ======
+    void onCreateBranch();
+    void onSwitchBranch();
+    void onMergeBranch();
+
     // ====== 文件监控 ======
     void onExternalFileChanged(const QString &path);
 
@@ -46,16 +54,19 @@ private:
     // UI 初始化
     void initModels();           // 创建 Model 并绑定到 View
     void initDetailWidget();     // 绑定 CommitDetailWidget 到 UI 的 label
+    void initBranchBar();        // 创建分支栏控件
     void connectSignals();       // 连接所有信号槽
     void setupMenus();           // 代码创建菜单栏
 
     // 数据刷新
     void refreshChapters();      // 重新扫描章节文件夹
     void refreshCommits();       // 重新加载 commit 列表
+    void refreshBranches();      // 重新加载分支列表
     void updateStatusBar();      // 更新状态栏信息
 
     // 核心操作
     bool openWorkspace(const QString &path);
+    QString branchTaggedMessage(const QString &base) const;
 
     // ---------- Designer 生成的 UI 指针 ----------
     Ui::MainWindow *ui;
@@ -71,7 +82,17 @@ private:
     // ---------- 详情控制器 ----------
     CommitDetailWidget *m_commitDetail;
 
+    // ---------- 分支栏控件 ----------
+    QComboBox   *m_branchCombo;
+    QPushButton *m_newBranchBtn;
+    QPushButton *m_mergeBtn;
+
+    // ---------- 定时器 ----------
+    QTimer *m_pollTimer;
+    AiDialog *m_aiDialog = nullptr;
+
     // ---------- 当前状态 ----------
+    QString m_currentBranch;    // 当前分支名
     QString m_currentChapter;   // 当前选中的章节名（空=未选中）
     QString m_workspacePath;    // 工作区路径（空=未打开）
 };

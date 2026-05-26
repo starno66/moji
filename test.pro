@@ -1,4 +1,4 @@
-QT += widgets
+QT += widgets network
 
 CONFIG += c++17
 
@@ -12,7 +12,8 @@ SOURCES += \
     src/chapterlistmodel.cpp \
     src/commitmodel.cpp \
     src/commitdetailwidget.cpp \
-    src/environmentsetupdialog.cpp
+    src/environmentsetupdialog.cpp \
+    src/aidialog.cpp
 
 HEADERS += \
     include/mainwindow.h \
@@ -21,10 +22,13 @@ HEADERS += \
     include/chapterlistmodel.h \
     include/commitmodel.h \
     include/commitdetailwidget.h \
-    include/environmentsetupdialog.h
+    include/environmentsetupdialog.h \
+    include/aidialog.h
 
 FORMS += \
     ui/mainwindow.ui
+
+RC_FILE = app.rc
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
