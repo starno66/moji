@@ -8,6 +8,7 @@
 #include "environmentsetupdialog.h"
 #include "aidialog.h"
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QFileDialog>      // 选择文件夹对话框
 #include <QProcess>
@@ -22,6 +23,8 @@
 #include <QMenuBar>
 #include <QTimer>
 #include <QVBoxLayout>
+
+extern QString makeStyleSheet(int scale);
 
 /*
  * ==================== 构造函数 ====================
@@ -361,6 +364,29 @@ void MainWindow::setupMenus()
         m_aiDialog->raise();
         m_aiDialog->activateWindow();
     });
+
+    // ---- 查看菜单 ----
+    QMenu *viewMenu = menuBar()->addMenu("查看(&V)");
+
+    QMenu *fontMenu = viewMenu->addMenu("字体大小");
+    auto *fontGroup = new QActionGroup(this);
+    fontGroup->setExclusive(true);
+
+    int curScale = QSettings().value("ui/fontScale", 0).toInt();
+
+    auto makeFontAction = [&](const QString &label, int scale) {
+        QAction *act = fontMenu->addAction(label);
+        act->setCheckable(true);
+        act->setChecked(scale == curScale);
+        act->setData(scale);
+        fontGroup->addAction(act);
+        connect(act, &QAction::triggered, this, [this, scale]() {
+            onSetFontScale(scale);
+        });
+    };
+    makeFontAction("小", -1);
+    makeFontAction("中", 0);
+    makeFontAction("大", 1);
 }
 
 void MainWindow::connectSignals()
@@ -910,4 +936,10 @@ void MainWindow::updateStatusBar()
         .arg(chapterCount);
 
     statusBar()->showMessage(msg);
+}
+
+void MainWindow::onSetFontScale(int scale)
+{
+    QSettings().setValue("ui/fontScale", scale);
+    qApp->setStyleSheet(makeStyleSheet(scale));
 }

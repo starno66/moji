@@ -50,6 +50,9 @@ private slots:
     // ====== 文件监控 ======
     void onExternalFileChanged(const QString &path);
 
+    // ====== 查看菜单 ======
+    void onSetFontScale(int scale);
+
 private:
     // UI 初始化
     void initModels();           // 创建 Model 并绑定到 View
