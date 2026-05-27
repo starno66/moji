@@ -23,9 +23,16 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
 
     // ── 标题 ──
     auto *titleLabel = new QLabel(
-        "<h3>欢迎使用墨迹</h3>"
-        "<p>检测到您的系统尚未安装 Git。<br>"
-        "版本管理功能需要 Git 才能使用，请先完成环境配置。</p>");
+        "<style>"
+        ".step{display:inline-block;width:24px;height:24px;border-radius:12px;"
+        "background:#1e40af;color:#fff;text-align:center;line-height:24px;"
+        "font-size:13px;font-weight:bold;margin-right:8px;}"
+        "</style>"
+        "<h3 style='margin-bottom:8px;'>欢迎使用墨迹</h3>"
+        "<p style='color:#475569;line-height:1.6;'>"
+        "<span class='step'>1</span> 安装 Git — 版本管理核心<br><br>"
+        "<span class='step'>2</span> 配置作者信息<br><br>"
+        "完成以上两步即可开始使用。</p>");
     titleLabel->setWordWrap(true);
     mainLayout->addWidget(titleLabel);
 
@@ -70,6 +77,11 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
 void EnvironmentSetupDialog::updateState()
 {
     m_installBtn->setEnabled(!m_gitInstalled);
+    if (m_gitInstalled) {
+        m_installBtn->setText("✓ Git 已安装");
+        m_installBtn->setStyleSheet("background-color:#16a34a;color:#fff;border:none;"
+            "border-radius:8px;padding:6px 16px;font-size:14px;font-weight:600;");
+    }
     m_nameEdit->setEnabled(m_gitInstalled);
     m_emailEdit->setEnabled(m_gitInstalled);
     m_saveBtn->setEnabled(m_gitInstalled);
