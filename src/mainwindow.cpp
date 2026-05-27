@@ -314,19 +314,6 @@ void MainWindow::setupMenus()
     exitAction->setShortcut(QKeySequence("Ctrl+Q"));
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
-    // ---- 章节菜单 ----
-    QMenu *chapterMenu = menuBar()->addMenu("章节(&C)");
-
-    QAction *newAction = chapterMenu->addAction("新建章节(&N)");
-    newAction->setShortcut(QKeySequence("Ctrl+N"));
-    connect(newAction, &QAction::triggered, this, &MainWindow::onCreateChapter);
-
-    QAction *renameAction = chapterMenu->addAction("重命名章节(&R)");
-    connect(renameAction, &QAction::triggered, this, &MainWindow::onRenameChapter);
-
-    QAction *deleteAction = chapterMenu->addAction("删除章节(&D)");
-    connect(deleteAction, &QAction::triggered, this, &MainWindow::onDeleteChapter);
-
     // ---- 远程菜单 ----
     QMenu *remoteMenu = menuBar()->addMenu("远程(&R)");
 
