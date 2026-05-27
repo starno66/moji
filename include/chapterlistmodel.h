@@ -23,6 +23,8 @@ public:
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
+    static constexpr int DirtyRole = Qt::UserRole + 1;
+
     // ====== 数据管理方法 ======
     void setChapters(const QStringList &chapters);  // 更新全部章节列表
     void setDirtyChapters(const QSet<QString> &dirty); // 设置有未提交变更的章节

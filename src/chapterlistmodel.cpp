@@ -22,12 +22,15 @@ QVariant ChapterListModel::data(const QModelIndex &index, int role) const
 
     if (role == Qt::DisplayRole) {
         if (m_dirtyChapters.contains(name))
-            return name + "（有未提交的更改）";
+            return name + "  ●";
         return name;
     }
 
-    if (role == Qt::ForegroundRole && m_dirtyChapters.contains(name))
-        return QColor("#cf222e");
+    if (role == Qt::ForegroundRole) {
+        if (m_dirtyChapters.contains(name))
+            return QColor("#f59e0b");
+        return {};
+    }
 
     return {};
 }
