@@ -149,11 +149,13 @@ void MainWindow::initBranchBar()
     branchBar->addWidget(m_branchCombo);
 
     m_newBranchBtn = new QPushButton("新建分支");
+    m_newBranchBtn->setObjectName("newBranchBtn");
     branchBar->addWidget(m_newBranchBtn);
 
     branchBar->addSpacing(8);
 
     m_mergeBtn = new QPushButton("合并到当前");
+    m_mergeBtn->setObjectName("mergeBtn");
     branchBar->addWidget(m_mergeBtn);
 
     branchBar->addStretch();
