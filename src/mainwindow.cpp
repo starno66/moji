@@ -700,6 +700,11 @@ void MainWindow::onRollbackToCommit()
     if (!idx.isValid()) return;
 
     CommitInfo info = m_commitModel->commitAt(idx.row());
+    if (info.message.contains("回退至")) {
+        QMessageBox::warning(this, "不可回退",
+            "该 commit 本身是一次回退操作，不能再次回退到此处。");
+        return;
+    }
     QString seqNum = QString::number(idx.row() + 1);
     QString targetHash = info.hash.left(7);
 
