@@ -207,19 +207,22 @@ void AiDialog::addBubble(const QString &role, const QString &text)
         ? text.toHtmlEscaped().replace('\n', "<br>")
         : simpleMarkdown(text);
 
-    // 气泡样式：用户右对齐蓝底白字，AI 左对齐白底
     QString bubbleStyle = isUser
-        ? "background:#1e40af;color:#ffffff;border-radius:12px 12px 4px 12px;"
-        : "background:#ffffff;border:1px solid #e2e8f0;border-radius:12px 12px 12px 4px;";
-    QString align = isUser ? "flex-end" : "flex-start";
+        ? "background:#1e40af;color:#ffffff;padding:10px 14px;"
+          "border-radius:12px;font-size:15px;line-height:1.6;"
+        : "background:#ffffff;border:1px solid #e2e8f0;padding:10px 14px;"
+          "border-radius:12px;font-size:15px;line-height:1.6;";
+    QString align = isUser ? "right" : "left";
     QString bubbleLabel = isUser ? "👤 你" : "🤖 墨迹 AI";
+    QString maxWidth = isUser ? "70%" : "85%";
 
     QString bubble = QString(
-        "<div style='display:flex;flex-direction:column;align-items:%1;margin:10px 12px;'>"
-        "<span style='font-size:13px;color:#94a3b8;margin-bottom:3px;'>%2</span>"
-        "<div style='%3 padding:10px 14px;max-width:80%%;font-size:15px;line-height:1.6;'>"
-        "%4</div></div>"
-    ).arg(align, bubbleLabel, bubbleStyle, body);
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin:8px 0;'>"
+        "<tr><td align='%1' valign='top'>"
+        "<span style='font-size:13px;color:#94a3b8;'>%2</span><br>"
+        "<div style='%3 width:%4;display:inline-block;text-align:left;'>"
+        "%5</div></td></tr></table>"
+    ).arg(align, bubbleLabel, bubbleStyle, maxWidth, body);
 
     m_chatHtml += bubble;
     renderHtml();
@@ -272,15 +275,15 @@ void AiDialog::onReadyRead()
     }
 
     // 渐进渲染：已有气泡 HTML + 流式气泡
-    QString bubbleStyle = "background:#ffffff;border:1px solid #e2e8f0;"
-                          "border-radius:12px 12px 12px 4px;";
+    QString bubbleStyle = "background:#ffffff;border:1px solid #e2e8f0;padding:10px 14px;"
+                          "border-radius:12px;font-size:15px;line-height:1.6;";
     QString body = simpleMarkdown(m_streamContent);
     QString streamBubble = QString(
-        "<div style='display:flex;flex-direction:column;align-items:flex-start;"
-        "margin:10px 12px;'>"
-        "<span style='font-size:13px;color:#94a3b8;margin-bottom:3px;'>🤖 墨迹 AI</span>"
-        "<div style='%1 padding:10px 14px;max-width:80%%;font-size:15px;line-height:1.6;'>"
-        "%2</div></div>"
+        "<table width='100%' cellspacing='0' cellpadding='0' style='margin:8px 0;'>"
+        "<tr><td align='left' valign='top'>"
+        "<span style='font-size:13px;color:#94a3b8;'>🤖 墨迹 AI</span><br>"
+        "<div style='%1 width:85%;display:inline-block;text-align:left;'>"
+        "%2</div></td></tr></table>"
     ).arg(bubbleStyle, body);
 
     m_chatView->setHtml(
