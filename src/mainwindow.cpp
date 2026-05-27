@@ -75,18 +75,19 @@ MainWindow::MainWindow(QWidget *parent)
     // 第7步：恢复上次工作区
     QSettings settings;
     QString lastPath = settings.value("workspace/lastPath").toString();
+    bool opened = false;
     if (!lastPath.isEmpty() && QDir(lastPath + "/.git").exists()) {
-        openWorkspace(lastPath);
+        opened = openWorkspace(lastPath);
     }
 
-    // 第6步：恢复窗口大小
     restoreGeometry(settings.value("window/geometry").toByteArray());
 
-    // 第7步：初始未打开工作区，禁用部分按钮
-    ui->newChapterBtn->setEnabled(false);
-    ui->renameChapterBtn->setEnabled(false);
-    ui->deleteChapterBtn->setEnabled(false);
-    ui->commitBtn->setEnabled(false);
+    if (!opened) {
+        ui->newChapterBtn->setEnabled(false);
+        ui->renameChapterBtn->setEnabled(false);
+        ui->deleteChapterBtn->setEnabled(false);
+        ui->commitBtn->setEnabled(false);
+    }
 
 }
 
