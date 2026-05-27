@@ -45,6 +45,7 @@ QListView::item:selected:!active { background: #eef2ff; color: #4338ca; }
 QComboBox { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
             padding: 5px 10px; min-width: 60px; font-size: %3px; }
 QComboBox#branchCombo { min-width: 200px; }
+QComboBox#filterCombo { min-width: 120px; }
 QComboBox:hover { background: #f1f5f9; }
 QComboBox::drop-down { border: none; width: 18px; subcontrol-position: right center; }
 QComboBox QAbstractItemView { background: #ffffff; border: 1px solid #e2e8f0;
