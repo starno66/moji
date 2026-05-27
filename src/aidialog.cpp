@@ -210,8 +210,8 @@ void AiDialog::addBubble(const QString &role, const QString &text)
 
     QString bubble = QString(
         "<div style='display:flex;flex-direction:column;align-items:%1;margin:10px 12px;'>"
-        "<span style='font-size:12px;color:#94a3b8;margin-bottom:3px;'>%2</span>"
-        "<div style='%3 padding:10px 14px;max-width:80%%;font-size:14px;line-height:1.6;'>"
+        "<span style='font-size:13px;color:#94a3b8;margin-bottom:3px;'>%2</span>"
+        "<div style='%3 padding:10px 14px;max-width:80%%;font-size:15px;line-height:1.6;'>"
         "%4</div></div>"
     ).arg(align, bubbleLabel, bubbleStyle, body);
 
@@ -223,10 +223,10 @@ void AiDialog::renderHtml()
 {
     m_chatView->setHtml(
         "<style>"
-        "body{font-size:14px;line-height:1.7;color:#1e293b;background:#f8fafc;margin:0;padding:8px;}"
+        "body{font-size:15px;line-height:1.7;color:#1e293b;background:#f8fafc;margin:0;padding:8px;}"
         "b{font-weight:bold;}"
         "code{background:#f1f5f9;padding:1px 6px;border-radius:4px;"
-        "font-family:'Cascadia Code',Consolas,monospace;font-size:13px;}"
+        "font-family:'Cascadia Code',Consolas,monospace;font-size:14px;}"
         "ul{margin:4px 0 8px;padding-left:20px;}"
         "li{margin:4px 0;}"
         "p{margin:4px 0 8px;}"

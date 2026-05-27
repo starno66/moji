@@ -26,7 +26,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
         "<style>"
         ".step{display:inline-block;width:24px;height:24px;border-radius:12px;"
         "background:#1e40af;color:#fff;text-align:center;line-height:24px;"
-        "font-size:13px;font-weight:bold;margin-right:8px;}"
+        "font-size:14px;font-weight:bold;margin-right:8px;}"
         "</style>"
         "<h3 style='margin-bottom:8px;'>欢迎使用墨迹</h3>"
         "<p style='color:#475569;line-height:1.6;'>"
@@ -80,7 +80,7 @@ void EnvironmentSetupDialog::updateState()
     if (m_gitInstalled) {
         m_installBtn->setText("✓ Git 已安装");
         m_installBtn->setStyleSheet("background-color:#16a34a;color:#fff;border:none;"
-            "border-radius:8px;padding:6px 16px;font-size:14px;font-weight:600;");
+            "border-radius:8px;padding:6px 16px;font-size:15px;font-weight:600;");
     }
     m_nameEdit->setEnabled(m_gitInstalled);
     m_emailEdit->setEnabled(m_gitInstalled);
