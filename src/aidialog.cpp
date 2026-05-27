@@ -131,6 +131,7 @@ void AiDialog::closeEvent(QCloseEvent *e)
 {
     if (m_reply) { m_reply->abort(); m_reply->deleteLater(); m_reply = nullptr; }
     m_busy = false;
+    m_streaming = false;
     e->accept();
 }
 
@@ -177,7 +178,10 @@ void AiDialog::onSend()
     m_inputEdit->clear();
     m_sendBtn->setEnabled(false);
     m_busy = true;
-    m_statusLabel->setText("等待回复...");
+    m_streaming = true;
+    m_streamBuffer.clear();
+    m_streamContent.clear();
+    m_statusLabel->setText("AI 正在输入...");
 
     QJsonObject u;
     u["role"] = "user"; u["content"] = text;
@@ -186,12 +190,14 @@ void AiDialog::onSend()
     QJsonObject body;
     body["model"] = m_modelCombo->currentData().toString();
     body["messages"] = m_messages;
-    body["stream"] = false;
+    body["stream"] = true;
 
     QNetworkRequest req(QUrl("https://api.deepseek.com/v1/chat/completions"));
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     req.setRawHeader("Authorization", ("Bearer " + key).toUtf8());
+    req.setRawHeader("Accept", "text/event-stream");
     m_reply = m_net->post(req, QJsonDocument(body).toJson());
+    connect(m_reply, &QNetworkReply::readyRead, this, &AiDialog::onReadyRead);
 }
 
 void AiDialog::addBubble(const QString &role, const QString &text)
@@ -235,6 +241,62 @@ void AiDialog::renderHtml()
         m_chatView->verticalScrollBar()->maximum());
 }
 
+void AiDialog::onReadyRead()
+{
+    if (!m_reply) return;
+    m_streamBuffer += QString::fromUtf8(m_reply->readAll());
+
+    // 解析完整的 SSE 事件（以 \n\n 分隔）
+    while (true) {
+        int idx = m_streamBuffer.indexOf("\n\n");
+        if (idx < 0) break;
+
+        QString event = m_streamBuffer.left(idx);
+        m_streamBuffer = m_streamBuffer.mid(idx + 2);
+
+        // 处理每一行 "data: ..."
+        QStringList lines = event.split('\n');
+        for (const QString &line : lines) {
+            if (!line.startsWith("data: ")) continue;
+            QString data = line.mid(6).trimmed();
+            if (data == "[DONE]") continue;
+
+            QJsonObject obj = QJsonDocument::fromJson(data.toUtf8()).object();
+            QJsonArray choices = obj["choices"].toArray();
+            if (choices.isEmpty()) continue;
+            QJsonObject choice = choices[0].toObject();
+            QString delta = choice["delta"].toObject()["content"].toString();
+            if (!delta.isEmpty())
+                m_streamContent += delta;
+        }
+    }
+
+    // 渐进渲染：已有气泡 HTML + 流式气泡
+    QString bubbleStyle = "background:#ffffff;border:1px solid #e2e8f0;"
+                          "border-radius:12px 12px 12px 4px;";
+    QString body = simpleMarkdown(m_streamContent);
+    QString streamBubble = QString(
+        "<div style='display:flex;flex-direction:column;align-items:flex-start;"
+        "margin:10px 12px;'>"
+        "<span style='font-size:13px;color:#94a3b8;margin-bottom:3px;'>🤖 墨迹 AI</span>"
+        "<div style='%1 padding:10px 14px;max-width:80%%;font-size:15px;line-height:1.6;'>"
+        "%2</div></div>"
+    ).arg(bubbleStyle, body);
+
+    m_chatView->setHtml(
+        "<style>"
+        "body{font-size:15px;line-height:1.7;color:#1e293b;background:#f8fafc;margin:0;padding:8px;}"
+        "b{font-weight:bold;}"
+        "code{background:#f1f5f9;padding:1px 6px;border-radius:4px;"
+        "font-family:'Cascadia Code',Consolas,monospace;font-size:14px;}"
+        "ul{margin:4px 0 8px;padding-left:20px;}"
+        "li{margin:4px 0;}"
+        "p{margin:4px 0 8px;}"
+        "</style>" + m_chatHtml + streamBubble);
+    m_chatView->verticalScrollBar()->setValue(
+        m_chatView->verticalScrollBar()->maximum());
+}
+
 void AiDialog::onReplyFinished(QNetworkReply *reply)
 {
     reply->deleteLater();
@@ -244,6 +306,7 @@ void AiDialog::onReplyFinished(QNetworkReply *reply)
     m_busy = false;
 
     if (reply->error() != QNetworkReply::NoError) {
+        m_streaming = false;
         QString err = (reply->error() == QNetworkReply::AuthenticationRequiredError)
             ? "❌ API Key 无效，请检查后重试。"
             : QString("❌ 请求失败: %1").arg(reply->errorString());
@@ -252,6 +315,36 @@ void AiDialog::onReplyFinished(QNetworkReply *reply)
         return;
     }
 
+    if (m_streaming) {
+        m_streaming = false;
+        // 处理缓冲区中剩余的数据
+        if (!m_streamBuffer.isEmpty()) {
+            QStringList lines = m_streamBuffer.split('\n');
+            for (const QString &line : lines) {
+                if (!line.startsWith("data: ")) continue;
+                QString data = line.mid(6).trimmed();
+                if (data == "[DONE]") continue;
+                QJsonObject obj = QJsonDocument::fromJson(data.toUtf8()).object();
+                QJsonArray choices = obj["choices"].toArray();
+                if (choices.isEmpty()) continue;
+                QString delta = choices[0].toObject()["delta"].toObject()["content"].toString();
+                if (!delta.isEmpty())
+                    m_streamContent += delta;
+            }
+            m_streamBuffer.clear();
+        }
+
+        if (!m_streamContent.isEmpty()) {
+            QJsonObject a;
+            a["role"] = "assistant"; a["content"] = m_streamContent;
+            m_messages.append(a);
+            addBubble("assistant", m_streamContent);
+        }
+        m_statusLabel->setText("就绪");
+        return;
+    }
+
+    // 非流式回退（不应执行到这里）
     QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
     QString content = obj["choices"].toArray()[0]
         .toObject()["message"].toObject()["content"].toString();

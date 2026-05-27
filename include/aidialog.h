@@ -27,6 +27,7 @@ protected:
 
 private slots:
     void onSend();
+    void onReadyRead();
     void onReplyFinished(QNetworkReply *reply);
 
 private:
@@ -45,7 +46,10 @@ private:
     QNetworkReply *m_reply = nullptr;
     QJsonArray m_messages;
     QString m_chatHtml;
+    QString m_streamBuffer;
+    QString m_streamContent;
     bool m_busy = false;
+    bool m_streaming = false;
 };
 
 #endif
