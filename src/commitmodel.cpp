@@ -77,19 +77,23 @@ void CommitDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
                            const QModelIndex &index) const
 {
     QString text = index.data(Qt::DisplayRole).toString();
-
-    QStyleOptionViewItem opt = option;
-    initStyleOption(&opt, index);
-    opt.text.clear();
-
-    QApplication::style()->drawControl(QStyle::CE_ItemViewItem, &opt, painter, nullptr);
-
-    painter->setRenderHint(QPainter::TextAntialiasing, true);
-
     if (text.isEmpty()) return;
 
-    // 非 main 分支：hash 在分支独有集合中的标红
-    QColor textColor = opt.palette.text().color();
+    painter->save();
+    painter->setRenderHint(QPainter::TextAntialiasing, true);
+
+    // --- 卡片背景 ---
+    bool selected = option.state & QStyle::State_Selected;
+    QRect cardRect = option.rect.adjusted(2, 2, -2, -2);
+
+    if (selected) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor("#eef2ff"));
+        painter->drawRoundedRect(cardRect, 8, 8);
+    }
+
+    // --- 文字颜色 ---
+    QColor textColor = option.palette.text().color();
     if (s_currentBranch != "main" && !s_branchOnlyHashes.isEmpty()) {
         const CommitModel *model = static_cast<const CommitModel *>(index.model());
         CommitInfo ci = model->commitAt(index.row());
@@ -101,12 +105,14 @@ void CommitDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
             }
         }
     }
+    if (selected && textColor == option.palette.text().color())
+        textColor = QColor("#4338ca");
 
+    // --- 解析 [序号] 前缀 ---
     int bracketEnd = text.indexOf(']');
     if (bracketEnd == -1) {
-        painter->save();
         painter->setPen(textColor);
-        painter->drawText(opt.rect.adjusted(4, 0, -4, 0),
+        painter->drawText(cardRect.adjusted(4, 0, -4, 0),
                           Qt::AlignLeft | Qt::AlignVCenter, text);
         painter->restore();
         return;
@@ -115,20 +121,26 @@ void CommitDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
     QString prefix = text.left(bracketEnd + 1);
     QString suffix = text.mid(bracketEnd + 1);
 
-    QFont boldFont = opt.font;
+    QFont boldFont = option.font;
     boldFont.setBold(true);
 
-    QRect textRect = opt.rect.adjusted(4, 0, -4, 0);
-    int prefixWidth = QFontMetrics(boldFont).horizontalAdvance(prefix);
+    QRect textRect = cardRect.adjusted(4, 0, -4, 0);
+    QFontMetrics fmBold(boldFont);
+    int prefixWidth = fmBold.horizontalAdvance(prefix);
 
-    painter->save();
-    painter->setPen(textColor);
+    // 画加粗序号
+    QRect prefixRect = textRect;
+    prefixRect.setWidth(prefixWidth);
     painter->setFont(boldFont);
-    painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, prefix);
+    painter->setPen(textColor);
+    painter->drawText(prefixRect, Qt::AlignLeft | Qt::AlignVCenter, prefix);
 
-    textRect.setLeft(textRect.left() + prefixWidth);
-    painter->setFont(opt.font);
-    QString elided = opt.fontMetrics.elidedText(suffix, Qt::ElideRight, textRect.width());
-    painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
+    // 画剩余文字
+    QRect suffixRect = textRect;
+    suffixRect.setLeft(textRect.left() + prefixWidth);
+    painter->setFont(option.font);
+    QString elided = option.fontMetrics.elidedText(suffix, Qt::ElideRight, suffixRect.width());
+    painter->drawText(suffixRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
+
     painter->restore();
 }
