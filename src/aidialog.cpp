@@ -203,28 +203,18 @@ void AiDialog::onSend()
 void AiDialog::addBubble(const QString &role, const QString &text)
 {
     bool isUser = (role == "user");
+    QString label = isUser ? "👤 你" : "🤖 墨迹 AI";
+    QString color = isUser ? "#1e40af" : "#1f883d";
     QString body  = isUser
         ? text.toHtmlEscaped().replace('\n', "<br>")
         : simpleMarkdown(text);
 
-    QString bubbleStyle = isUser
-        ? "background:#1e40af;color:#ffffff;padding:10px 14px;"
-          "border-radius:12px;font-size:15px;line-height:1.6;"
-        : "background:#ffffff;border:1px solid #e2e8f0;padding:10px 14px;"
-          "border-radius:12px;font-size:15px;line-height:1.6;";
-    QString align = isUser ? "right" : "left";
-    QString bubbleLabel = isUser ? "👤 你" : "🤖 墨迹 AI";
-    QString maxWidth = isUser ? "70%" : "85%";
+    static const char *fmt =
+        "<div style='margin:8px 0 20px 8px;'>"
+        "<p style='color:%1;margin:0 0 4px;'><b>%2</b></p>"
+        "<div style='margin:2px 0;'>%3</div></div>";
 
-    QString bubble = QString(
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin:8px 0;'>"
-        "<tr><td align='%1' valign='top'>"
-        "<span style='font-size:13px;color:#94a3b8;'>%2</span><br>"
-        "<div style='%3 width:%4;display:inline-block;text-align:left;'>"
-        "%5</div></td></tr></table>"
-    ).arg(align, bubbleLabel, bubbleStyle, maxWidth, body);
-
-    m_chatHtml += bubble;
+    m_chatHtml += QString(fmt).arg(color, label, body);
     renderHtml();
 }
 
@@ -274,17 +264,13 @@ void AiDialog::onReadyRead()
         }
     }
 
-    // 渐进渲染：已有气泡 HTML + 流式气泡
-    QString bubbleStyle = "background:#ffffff;border:1px solid #e2e8f0;padding:10px 14px;"
-                          "border-radius:12px;font-size:15px;line-height:1.6;";
+    // 渐进渲染：已有 HTML + 流式内容
     QString body = simpleMarkdown(m_streamContent);
     QString streamBubble = QString(
-        "<table width='100%' cellspacing='0' cellpadding='0' style='margin:8px 0;'>"
-        "<tr><td align='left' valign='top'>"
-        "<span style='font-size:13px;color:#94a3b8;'>🤖 墨迹 AI</span><br>"
-        "<div style='%1 width:85%;display:inline-block;text-align:left;'>"
-        "%2</div></td></tr></table>"
-    ).arg(bubbleStyle, body);
+        "<div style='margin:8px 0 20px 8px;'>"
+        "<p style='color:#1f883d;margin:0 0 4px;'><b>🤖 墨迹 AI</b></p>"
+        "<div style='margin:2px 0;'>%1</div></div>"
+    ).arg(body);
 
     m_chatView->setHtml(
         "<style>"
