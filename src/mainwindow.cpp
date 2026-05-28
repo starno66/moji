@@ -330,8 +330,9 @@ void MainWindow::setupMenus()
     aiAction->setShortcut(QKeySequence("Ctrl+I"));
     connect(aiAction, &QAction::triggered, this, [this]() {
         if (!m_aiDialog) {
-            m_aiDialog = new AiDialog(this);
+            m_aiDialog = new AiDialog(nullptr);
             m_aiDialog->setWindowFlags(Qt::Window);
+            m_aiDialog->setAttribute(Qt::WA_DeleteOnClose);
             connect(m_aiDialog, &QDialog::destroyed, this, [this]() {
                 m_aiDialog = nullptr;
             });
