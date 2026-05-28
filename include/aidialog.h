@@ -24,6 +24,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *e) override;
+    bool eventFilter(QObject *obj, QEvent *e) override;
 
 private slots:
     void onSend();

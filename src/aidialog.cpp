@@ -1,6 +1,7 @@
 #include "aidialog.h"
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QKeyEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -104,7 +105,8 @@ AiDialog::AiDialog(QWidget *parent)
 
     m_inputEdit = new QTextEdit();
     m_inputEdit->setMaximumHeight(80);
-    m_inputEdit->setPlaceholderText("输入提示词...");
+    m_inputEdit->setPlaceholderText("输入提示词...（Enter 发送，Shift+Enter 换行）");
+    m_inputEdit->installEventFilter(this);
     lay->addWidget(m_inputEdit);
 
     auto *bot = new QHBoxLayout();
@@ -135,6 +137,20 @@ void AiDialog::closeEvent(QCloseEvent *e)
     e->accept();
 }
 
+bool AiDialog::eventFilter(QObject *obj, QEvent *e)
+{
+    if (obj == m_inputEdit && e->type() == QEvent::KeyPress) {
+        auto *ke = static_cast<QKeyEvent *>(e);
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+            if (!(ke->modifiers() & Qt::ShiftModifier)) {
+                onSend();
+                return true;
+            }
+        }
+    }
+    return QDialog::eventFilter(obj, e);
+}
+
 void AiDialog::setCommitContext(const QString &ctx)
 {
     if (!m_messages.isEmpty()) return;
@@ -142,6 +158,7 @@ void AiDialog::setCommitContext(const QString &ctx)
         "## 角色定位\n你是「墨迹」写作平台的 AI 助手。墨迹是一款面向大学生和教师的"
         "Git 版本管理写作工具，用户通过章节文件夹管理文档，用 Git 追踪每次修改历史。"
         "学生在main分支下进行写作，教师或学生都可以创建分支进行修改。\n\n"
+        "你必须严格按照用户输入的提示词进行分析。\n"
         "## 核心能力\n"
         "1.详细整理出这篇文章经过谁手，做出了怎样的修改\n\n"
         "2.分析commit历史：总结修改趋势、识别高频修改区域、发现写作瓶颈\n"
@@ -153,7 +170,8 @@ void AiDialog::setCommitContext(const QString &ctx)
         "- 分析类回复用分点列表，每条配具体理由\n"
         "- 涉及具体commit或文件时，用方括号标注编号\n"
         "- 每段分析到位但不冗杂\n\n"
-        "## 注意事项\n- 仅基于提供的commit上下文作答，不编造信息，不出现AI幻觉\n"
+        "## 注意事项\n"
+        "- 仅基于提供的commit上下文作答，不编造信息，不出现AI幻觉\n"
         "- 如果用户问题超出写作辅助范围，委婉引导回正题\n"
         "- 如果commit历史为空，提示用户先进行提交");
     if (!ctx.isEmpty())
@@ -183,7 +201,7 @@ void AiDialog::onSend()
     m_streaming = true;
     m_streamBuffer.clear();
     m_streamContent.clear();
-    m_statusLabel->setText("AI 正在输入...");
+    m_statusLabel->setText("thinking...");
 
     QJsonObject u;
     u["role"] = "user"; u["content"] = text;
