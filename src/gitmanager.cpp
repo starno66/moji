@@ -251,6 +251,15 @@ bool GitManager::deleteBranch(const QString &name)
     return ok;
 }
 
+bool GitManager::dropCommit(const QString &hash)
+{
+    // git rebase --onto <hash>~1 <hash> <branch>
+    // 将 <hash> 之后的所有 commit 重放到 <hash> 的父 commit 上，从而丢弃 <hash>
+    bool ok;
+    runGit({"rebase", "--onto", hash + "~1", hash}, &ok);
+    return ok;
+}
+
 QString GitManager::mergeBase(const QString &a, const QString &b)
 {
     bool ok;

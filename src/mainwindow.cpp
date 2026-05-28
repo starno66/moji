@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QMenuBar>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -121,6 +122,7 @@ void MainWindow::initModels()
     ui->chapterListView->setModel(m_chapterModel);
     ui->commitListView->setModel(m_commitModel);
     ui->commitListView->setItemDelegate(new CommitDelegate(this));
+    ui->commitListView->setContextMenuPolicy(Qt::CustomContextMenu);
 }
 
 void MainWindow::initDetailWidget()
@@ -385,6 +387,10 @@ void MainWindow::connectSignals()
     // 点击 commit → 显示详情
     connect(ui->commitListView, &QListView::clicked,
             this, &MainWindow::onCommitSelected);
+
+    // 右键 commit → 上下文菜单
+    connect(ui->commitListView, &QListView::customContextMenuRequested,
+            this, &MainWindow::onCommitContextMenu);
 
     // 切换筛选下拉框 → 重新加载对应章节的 commit
     connect(ui->filterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -748,6 +754,38 @@ void MainWindow::onRollbackToCommit()
     statusBar()->showMessage(
         QString("章节 \"%1\" 已回退到版本 %2")
             .arg(m_currentChapter, seqNum), 5000);
+}
+
+void MainWindow::onCommitContextMenu(const QPoint &pos)
+{
+    QModelIndex index = ui->commitListView->indexAt(pos);
+    if (!index.isValid()) return;
+
+    CommitInfo info = m_commitModel->commitAt(index.row());
+
+    QMenu menu(this);
+    QAction *deleteAction = menu.addAction("删除此 Commit");
+    QAction *chosen = menu.exec(ui->commitListView->viewport()->mapToGlobal(pos));
+    if (chosen != deleteAction) return;
+
+    QString shortHash = info.hash.left(7);
+    auto answer = QMessageBox::question(this, "确认删除",
+        QString("确定要删除 Commit [%1] %2 吗？\n\n"
+                "此操作将永久移除该提交记录，但不会影响文件内容。\n"
+                "如果已推送到远程，需要强制推送才能同步。")
+            .arg(QString::number(index.row() + 1), info.message),
+        QMessageBox::Yes | QMessageBox::No);
+    if (answer != QMessageBox::Yes) return;
+
+    if (!m_gitManager->dropCommit(info.hash)) {
+        QMessageBox::critical(this, "删除失败",
+            "无法删除该 Commit。可能存在冲突，请手动处理。");
+        return;
+    }
+
+    refreshCommits();
+    updateStatusBar();
+    statusBar()->showMessage(QString("已删除 Commit [%1]").arg(index.row() + 1), 3000);
 }
 
 void MainWindow::onCommitChanges()

@@ -39,6 +39,7 @@ private slots:
     void onCommitSelected(const QModelIndex &index);
     void onFilterChanged(int comboIndex);
     void onRollbackToCommit();
+    void onCommitContextMenu(const QPoint &pos);
     void onCommitChanges();
     void onPushToRemote();
 
