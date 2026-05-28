@@ -38,6 +38,7 @@ private:
     QProcess *m_installProcess = nullptr;
     QTimer *m_progressTimer;
     int m_progressDot = 0;
+    QString m_outputBuffer;
     bool m_gitInstalled = false;
     bool m_installing = false;
 };

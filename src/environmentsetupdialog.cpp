@@ -140,10 +140,12 @@ void EnvironmentSetupDialog::onInstallGit()
 
     // 开始异步安装
     m_installing = true;
+    m_outputBuffer.clear();
     m_installBtn->setEnabled(false);
     m_installBtn->setText("正在安装");
     m_installBtn->setStyleSheet("");
-    m_statusLabel->setText("正在通过 winget 下载并安装 Git，请稍候...");
+    m_statusLabel->setText("正在通过 winget 下载 Git，请稍候...");
+    m_progressBar->setRange(0, 0);  // 先显示不确定模式
     m_progressBar->show();
     m_progressTimer->start();
 
@@ -155,11 +157,11 @@ void EnvironmentSetupDialog::onInstallGit()
         onInstallFinished(code);
     });
 
-    // --silent: 静默安装，避免弹出额外窗口
     // --scope user: 安装到用户目录，无需管理员权限
+    // 不加 --silent，让 winget 输出真实的下载/安装进度
     m_installProcess->start("winget", {
         "install", "--id", "Git.Git", "-e",
-        "--silent", "--scope", "user",
+        "--scope", "user",
         "--accept-source-agreements",
         "--accept-package-agreements"
     });
@@ -168,18 +170,40 @@ void EnvironmentSetupDialog::onInstallGit()
 void EnvironmentSetupDialog::onInstallProgress()
 {
     if (!m_installProcess) return;
-    // winget --silent 模式下输出较少，但仍可能输出错误信息
-    QString output = QString::fromUtf8(m_installProcess->readAll()).trimmed();
-    if (!output.isEmpty()) {
-        QStringList lines = output.split('\n', Qt::SkipEmptyParts);
-        QString last = lines.last().trimmed();
-        // 过滤掉 winget 的进度条字符（包含 █ 和 ▒）
-        last.remove(QRegularExpression("[█▒\\r]"));
-        if (!last.isEmpty()) {
-            if (last.length() > 80)
-                last = last.left(77) + "...";
-            m_statusLabel->setText(last);
-        }
+
+    m_outputBuffer += QString::fromUtf8(m_installProcess->readAll());
+
+    // winget 用 \r 覆盖当前行更新进度，用 \n 换行
+    // 取最后一个 \r 或 \n 之后的内容作为最新状态
+    int lastCR = m_outputBuffer.lastIndexOf('\r');
+    int lastLF = m_outputBuffer.lastIndexOf('\n');
+    int lastSep = qMax(lastCR, lastLF);
+
+    QString latest;
+    if (lastSep >= 0)
+        latest = m_outputBuffer.mid(lastSep + 1).trimmed();
+    else
+        latest = m_outputBuffer.trimmed();
+
+    if (latest.isEmpty()) return;
+
+    // 提取百分比（winget 格式：████████▒▒▒▒  45% 或 1024 KB / 2.97 MB）
+    static const QRegularExpression pctRe("(\\d{1,3})\\s*%");
+    QRegularExpressionMatch m = pctRe.match(latest);
+    if (m.hasMatch()) {
+        int pct = m.captured(1).toInt();
+        m_progressBar->setRange(0, 100);
+        m_progressBar->setValue(pct);
+    }
+
+    // 清理进度条字符，取有意义的部分显示
+    QString clean = latest;
+    clean.remove(QRegularExpression("[█▒▓\\r]"));
+    clean = clean.trimmed();
+    if (!clean.isEmpty()) {
+        if (clean.length() > 80)
+            clean = clean.left(77) + "...";
+        m_statusLabel->setText(clean);
     }
 }
 
