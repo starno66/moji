@@ -70,6 +70,9 @@ public:
     // 删除指定 commit（通过 rebase 丢弃）
     bool dropCommit(const QString &hash);    // git rebase --onto
 
+    // 修改指定 commit 的 message
+    bool amendMessage(const QString &hash, const QString &newMessage);
+
     // 解析 git log 的原始输出
     static QList<CommitInfo> parseLogOutput(const QByteArray &output);
 

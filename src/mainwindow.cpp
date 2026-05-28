@@ -764,28 +764,46 @@ void MainWindow::onCommitContextMenu(const QPoint &pos)
     CommitInfo info = m_commitModel->commitAt(index.row());
 
     QMenu menu(this);
+    QAction *editAction = menu.addAction("修改 Commit Message");
     QAction *deleteAction = menu.addAction("删除此 Commit");
     QAction *chosen = menu.exec(ui->commitListView->viewport()->mapToGlobal(pos));
-    if (chosen != deleteAction) return;
 
-    QString shortHash = info.hash.left(7);
-    auto answer = QMessageBox::question(this, "确认删除",
-        QString("确定要删除 Commit [%1] %2 吗？\n\n"
-                "此操作将永久移除该提交记录，但不会影响文件内容。\n"
-                "如果已推送到远程，需要强制推送才能同步。")
-            .arg(QString::number(index.row() + 1), info.message),
-        QMessageBox::Yes | QMessageBox::No);
-    if (answer != QMessageBox::Yes) return;
+    if (chosen == editAction) {
+        bool ok;
+        QString newMsg = QInputDialog::getText(this, "修改 Commit Message",
+            QString("编辑 Commit [%1] 的提交信息:").arg(index.row() + 1),
+            QLineEdit::Normal, info.message, &ok);
+        if (!ok || newMsg.isEmpty() || newMsg == info.message) return;
 
-    if (!m_gitManager->dropCommit(info.hash)) {
-        QMessageBox::critical(this, "删除失败",
-            "无法删除该 Commit。可能存在冲突，请手动处理。");
+        if (!m_gitManager->amendMessage(info.hash, newMsg)) {
+            QMessageBox::critical(this, "修改失败",
+                "无法修改该 Commit 信息。可能存在冲突，请手动处理。");
+            return;
+        }
+        refreshCommits();
+        updateStatusBar();
+        statusBar()->showMessage(QString("已修改 Commit [%1]").arg(index.row() + 1), 3000);
         return;
     }
 
-    refreshCommits();
-    updateStatusBar();
-    statusBar()->showMessage(QString("已删除 Commit [%1]").arg(index.row() + 1), 3000);
+    if (chosen == deleteAction) {
+        auto answer = QMessageBox::question(this, "确认删除",
+            QString("确定要删除 Commit [%1] %2 吗？\n\n"
+                    "此操作将永久移除该提交记录，但不会影响文件内容。\n"
+                    "如果已推送到远程，需要强制推送才能同步。")
+                .arg(QString::number(index.row() + 1), info.message),
+            QMessageBox::Yes | QMessageBox::No);
+        if (answer != QMessageBox::Yes) return;
+
+        if (!m_gitManager->dropCommit(info.hash)) {
+            QMessageBox::critical(this, "删除失败",
+                "无法删除该 Commit。可能存在冲突，请手动处理。");
+            return;
+        }
+        refreshCommits();
+        updateStatusBar();
+        statusBar()->showMessage(QString("已删除 Commit [%1]").arg(index.row() + 1), 3000);
+    }
 }
 
 void MainWindow::onCommitChanges()

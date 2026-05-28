@@ -1,6 +1,7 @@
 #include "gitmanager.h"
 #include <QDir>
 #include <QProcess>
+#include <QTemporaryFile>
 
 GitManager::GitManager(QObject *parent)
     : QObject(parent)
@@ -253,11 +254,69 @@ bool GitManager::deleteBranch(const QString &name)
 
 bool GitManager::dropCommit(const QString &hash)
 {
-    // git rebase --onto <hash>~1 <hash> <branch>
-    // 将 <hash> 之后的所有 commit 重放到 <hash> 的父 commit 上，从而丢弃 <hash>
     bool ok;
     runGit({"rebase", "--onto", hash + "~1", hash}, &ok);
     return ok;
+}
+
+bool GitManager::amendMessage(const QString &hash, const QString &newMessage)
+{
+    // 如果是最新 commit（HEAD），直接用 commit --amend
+    QByteArray headHash = runGit({"rev-parse", "HEAD"});
+    if (QString::fromUtf8(headHash).trimmed() == hash.trimmed()) {
+        bool ok;
+        runGit({"commit", "--amend", "-m", newMessage}, &ok);
+        return ok;
+    }
+
+    // 非 HEAD：使用 rebase -i，通过挂载 GIT_SEQUENCE_EDITOR 和 GIT_EDITOR
+    // 将消息写入临时文件，再用 cp 覆盖 rebase 给的编辑器文件
+    QTemporaryFile msgFile;
+    msgFile.open();
+    QString msgPath = msgFile.fileName();
+    msgFile.write(newMessage.toUtf8());
+    msgFile.close();
+    // Windows 路径转 Unix 格式，供 Git 自带的 sh 使用
+    msgPath.replace('\\', '/');
+
+    // GIT_SEQUENCE_EDITOR 脚本：将 todo 列表中的 pick HASH 改为 reword HASH
+    QTemporaryFile seqScript;
+    seqScript.open();
+    QString seqPath = seqScript.fileName();
+    seqScript.write(
+        QString("#!/bin/sh\nsed 's/^pick %1/reword %1/' \"$1\" > \"$1.tmp\" && mv \"$1.tmp\" \"$1\"\n")
+            .arg(hash.left(7)).toUtf8());
+    seqScript.close();
+    seqPath.replace('\\', '/');
+
+    // GIT_EDITOR 脚本：将提前写好的消息文件复制到 rebase 给的文件
+    QTemporaryFile editorScript;
+    editorScript.open();
+    QString editorPath = editorScript.fileName();
+    editorScript.write(
+        QString("#!/bin/sh\ncp \"%1\" \"$1\"\n").arg(msgPath).toUtf8());
+    editorScript.close();
+    editorPath.replace('\\', '/');
+
+    QProcess process;
+    process.setWorkingDirectory(m_workspacePath);
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("GIT_SEQUENCE_EDITOR", "sh \"" + seqPath + "\"");
+    env.insert("GIT_EDITOR", "sh \"" + editorPath + "\"");
+    process.setProcessEnvironment(env);
+    process.start("git", {"rebase", "-i", hash + "~1"});
+    if (!process.waitForFinished(m_timeoutMs)) {
+        process.kill();
+        runGit({"rebase", "--abort"});
+        return false;
+    }
+    if (process.exitCode() != 0) {
+        runGit({"rebase", "--abort"});
+        emit errorOccurred("amendMessage",
+            QString::fromUtf8(process.readAllStandardError()).trimmed());
+        return false;
+    }
+    return true;
 }
 
 QString GitManager::mergeBase(const QString &a, const QString &b)
