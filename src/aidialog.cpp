@@ -147,6 +147,10 @@ bool AiDialog::eventFilter(QObject *obj, QEvent *e)
                 return true;
             }
         }
+        if (ke->key() == Qt::Key_Escape) {
+            close();
+            return true;
+        }
     }
     return QDialog::eventFilter(obj, e);
 }
