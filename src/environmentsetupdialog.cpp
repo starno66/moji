@@ -10,6 +10,9 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QFrame>
+#include <QProcess>
+#include <QProgressBar>
+#include <QTimer>
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
     : QDialog(parent)
@@ -44,6 +47,17 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
     m_statusLabel->setWordWrap(true);
     mainLayout->addWidget(m_statusLabel);
 
+    // ── 进度条 ──
+    m_progressBar = new QProgressBar();
+    m_progressBar->setRange(0, 0);  // 不确定模式（动画滚动条）
+    m_progressBar->setTextVisible(false);
+    m_progressBar->setFixedHeight(6);
+    m_progressBar->setStyleSheet(
+        "QProgressBar{background:#e2e8f0;border:none;border-radius:3px;}"
+        "QProgressBar::chunk{background:#1e40af;border-radius:3px;}");
+    m_progressBar->hide();
+    mainLayout->addWidget(m_progressBar);
+
     // ── 分隔线 ──
     auto *separator = new QFrame;
     separator->setFrameShape(QFrame::HLine);
@@ -64,6 +78,12 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
     m_saveBtn = new QPushButton("保存配置，开始使用");
     mainLayout->addWidget(m_saveBtn);
 
+    // ── 动画定时器 ──
+    m_progressTimer = new QTimer(this);
+    m_progressTimer->setInterval(500);
+    connect(m_progressTimer, &QTimer::timeout,
+            this, &EnvironmentSetupDialog::onProgressTimer);
+
     // ── 连接信号 ──
     connect(m_installBtn, &QPushButton::clicked,
             this, &EnvironmentSetupDialog::onInstallGit);
@@ -76,7 +96,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent)
 
 void EnvironmentSetupDialog::updateState()
 {
-    m_installBtn->setEnabled(!m_gitInstalled);
+    m_installBtn->setEnabled(!m_gitInstalled && !m_installing);
     if (m_gitInstalled) {
         m_installBtn->setText("✓ Git 已安装");
         m_installBtn->setStyleSheet("background-color:#16a34a;color:#fff;border:none;"
@@ -87,23 +107,96 @@ void EnvironmentSetupDialog::updateState()
     m_saveBtn->setEnabled(m_gitInstalled);
 }
 
+void EnvironmentSetupDialog::onProgressTimer()
+{
+    // 动画：安装中. → 安装中.. → 安装中...
+    m_progressDot = (m_progressDot + 1) % 4;
+    QString dots(m_progressDot, '.');
+    m_installBtn->setText("正在安装" + dots);
+}
+
 void EnvironmentSetupDialog::onInstallGit()
 {
-    m_installBtn->setEnabled(false);
-    m_installBtn->setText("安装中...");
-    m_statusLabel->setText("正在下载并安装 Git，请稍候（可能需要几分钟）...");
+    if (m_installing) return;
 
-    if (GitManager::installGit()) {
+    // 检查 winget 是否可用
+    QProcess testProc;
+    testProc.start("winget", {"--version"});
+    testProc.waitForFinished(5000);
+    bool wingetAvailable = (testProc.exitCode() == 0);
+
+    if (!wingetAvailable) {
+        m_statusLabel->setText("未检测到 winget 包管理器。\n"
+            "请手动下载安装 Git：https://git-scm.com\n"
+            "安装完成后重启本应用。");
+        QMessageBox::information(this, "提示",
+            "自动安装需要 winget（Windows 包管理器）。\n\n"
+            "您的系统可能未安装或版本过旧。请手动下载：\n"
+            "https://git-scm.com\n\n"
+            "下载后运行安装程序，保持默认选项即可。");
+        return;
+    }
+
+    // 开始异步安装
+    m_installing = true;
+    m_installBtn->setEnabled(false);
+    m_installBtn->setText("正在安装");
+    m_installBtn->setStyleSheet("");  // 清除绿色样式
+    m_statusLabel->setText("正在通过 winget 下载 Git，请稍候...");
+    m_progressBar->show();
+    m_progressTimer->start();
+
+    m_installProcess = new QProcess(this);
+    m_installProcess->setProcessChannelMode(QProcess::MergedChannels);
+    connect(m_installProcess, &QProcess::readyRead,
+            this, &EnvironmentSetupDialog::onInstallProgress);
+    connect(m_installProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int code, QProcess::ExitStatus) {
+        onInstallFinished(code);
+    });
+
+    m_installProcess->start("winget", {
+        "install", "--id", "Git.Git", "-e",
+        "--accept-source-agreements",
+        "--accept-package-agreements"
+    });
+}
+
+void EnvironmentSetupDialog::onInstallProgress()
+{
+    if (!m_installProcess) return;
+    QString output = QString::fromUtf8(m_installProcess->readAll()).trimmed();
+    if (!output.isEmpty()) {
+        // 取最后一行有意义的内容显示
+        QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+        QString last = lines.last().trimmed();
+        if (last.length() > 80)
+            last = last.left(77) + "...";
+        m_statusLabel->setText(last);
+    }
+}
+
+void EnvironmentSetupDialog::onInstallFinished(int exitCode)
+{
+    m_progressTimer->stop();
+    m_progressBar->hide();
+    m_installing = false;
+
+    if (m_installProcess) {
+        m_installProcess->deleteLater();
+        m_installProcess = nullptr;
+    }
+
+    if (exitCode == 0) {
         m_gitInstalled = true;
         m_installBtn->setText("✓ Git 已安装");
         m_statusLabel->setText("Git 安装成功！请填写您的作者信息，然后保存配置。");
     } else {
         m_installBtn->setText("一键安装 Git");
-        m_installBtn->setEnabled(true);
-        m_statusLabel->setText("安装失败。请尝试手动安装。");
-
+        m_statusLabel->setText("安装失败（错误码: " + QString::number(exitCode)
+            + "）。请尝试手动安装 Git。");
         QMessageBox::warning(this, "安装失败",
-            "自动安装失败。请手动下载安装 Git：\n\n"
+            "自动安装未能完成。请手动下载安装 Git：\n\n"
             "https://git-scm.com\n\n"
             "安装完成后重启本应用。");
     }
