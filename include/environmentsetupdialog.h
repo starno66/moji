@@ -16,6 +16,9 @@ class EnvironmentSetupDialog : public QDialog
 public:
     explicit EnvironmentSetupDialog(QWidget *parent = nullptr);
 
+protected:
+    void reject() override;
+
 private slots:
     void onInstallGit();
     void onInstallProgress();
