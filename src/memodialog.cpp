@@ -201,6 +201,8 @@ MemoDialog::MemoDialog(const QString &workspacePath, GitManager *git,
         "font-family:'Cascadia Code',Consolas,monospace;font-size:14px;background:#fafbfc;}");
 
     m_preview = new QWebEngineView();
+    m_preview->setAttribute(Qt::WA_InputMethodEnabled, false);
+    m_preview->setFocusPolicy(Qt::NoFocus);
     m_preview->setStyleSheet(
         "QWebEngineView{border:1px solid #e2e8f0;border-radius:8px;background:#fff;}");
     m_preview->load(QUrl("qrc:/mathjax.html"));
@@ -518,9 +520,11 @@ void MemoDialog::onEditorChanged() { m_debounce->start(); }
 
 void MemoDialog::updatePreview()
 {
-    QByteArray b64 = m_editor->toPlainText().toUtf8().toBase64();
+    QString md = m_editor->toPlainText();
+    QByteArray b64 = md.toUtf8().toBase64();
     m_preview->page()->runJavaScript(
-        QString("render(atob('%1'))").arg(QString::fromLatin1(b64)));
+        QString("render(decodeURIComponent(escape(atob('%1'))))")
+            .arg(QString::fromLatin1(b64)));
 }
 
 void MemoDialog::insertMarkdown(const QString &before, const QString &after)
