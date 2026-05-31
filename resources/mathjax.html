@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body{font-family:-apple-system,'Segoe UI',sans-serif;font-size:15px;
+line-height:1.7;color:#1e293b;padding:14px;margin:0;}
+h1{font-size:20px;margin:10px 0 4px;}h2{font-size:17px;margin:8px 0 3px;}
+h3{font-size:15px;margin:6px 0 2px;}
+p{margin:3px 0 6px;}code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:14px;}
+pre{background:#f8fafc;padding:10px;border-radius:8px;overflow-x:auto;}
+pre code{background:none;padding:0;}
+blockquote{border-left:3px solid #e2e8f0;margin:6px 0;padding:2px 14px;color:#64748b;}
+table{border-collapse:collapse;}td,th{border:1px solid #e2e8f0;padding:5px 10px;}
+ul,ol{margin:3px 0 6px;padding-left:22px;}li{margin:2px 0;}
+hr{border:none;border-top:1px solid #e2e8f0;margin:12px 0;}
+a{color:#0969da;}
+.MathJax{font-size:1.05em;}
+</style>
+</head>
+<body>
+<div id="content"></div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$'],['\\[','\\]']]}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script>
+async function render(text){
+  document.getElementById('content').innerHTML=marked.parse(text);
+  await MathJax.typesetPromise();
+}
+</script>
+</body>
+</html>

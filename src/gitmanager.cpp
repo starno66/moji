@@ -132,7 +132,7 @@ bool GitManager::hasUncommittedChanges(const QString &folder)
 {
     QStringList args = {"status", "--porcelain"};
     if (!folder.isEmpty())
-        args << "--" << folder;
+        args << "--" << (folder + "/*");
     bool ok;
     QByteArray output = runGit(args, &ok);
     if (!ok) return false;

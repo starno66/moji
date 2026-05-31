@@ -19,6 +19,7 @@ public:
 
 private slots:
     void onLinkClicked(const QUrl &url);
+    void onFileContextMenu(const QPoint &pos);
 
 private:
     QString resolveMessage(const QString &message) const;

@@ -88,3 +88,9 @@ CMakeLists.txt.user*
 debug/
 release/
 packaging/
+cmake-build-*/
+build.ps1
+cmake_build.ps1
+check_dlls.ps1
+test_run.ps1
+*.bat

@@ -1,5 +1,8 @@
 #include "commitdetailwidget.h"
+#include "memodialog.h"
 #include <QDesktopServices>
+#include <QDir>
+#include <QMenu>
 #include <QRegularExpression>
 #include <QUrl>
 
@@ -21,6 +24,9 @@ void CommitDetailWidget::bind(QTextBrowser *browser)
         );
         connect(m_browser, &QTextBrowser::anchorClicked,
                 this, &CommitDetailWidget::onLinkClicked);
+        m_browser->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(m_browser, &QTextBrowser::customContextMenuRequested,
+                this, &CommitDetailWidget::onFileContextMenu);
     }
 }
 
@@ -112,8 +118,38 @@ void CommitDetailWidget::clear()
 
 void CommitDetailWidget::onLinkClicked(const QUrl &url)
 {
-    if (url.isLocalFile()) {
-        // 用系统默认程序打开文件（Word 打开 .docx，记事本打开 .txt 等）
+    if (url.isLocalFile())
         QDesktopServices::openUrl(url);
+}
+
+void CommitDetailWidget::onFileContextMenu(const QPoint &pos)
+{
+    if (!m_browser) return;
+
+    QString anchor = m_browser->anchorAt(pos);
+    if (anchor.isEmpty()) return;
+
+    QUrl url(anchor);
+    if (!url.isLocalFile()) return;
+
+    QString filePath = url.toLocalFile();
+    // 计算相对于工作区的路径
+    QString relPath = filePath;
+    if (filePath.startsWith(m_workspacePath))
+        relPath = filePath.mid(m_workspacePath.length() + 1);
+
+    QMenu menu(m_browser);
+    QAction *openAction = menu.addAction("打开文件");
+    QAction *memoAction = menu.addAction("查看随记");
+
+    QAction *chosen = menu.exec(m_browser->viewport()->mapToGlobal(pos));
+    if (chosen == openAction) {
+        QDesktopServices::openUrl(url);
+    } else if (chosen == memoAction) {
+        auto *dlg = new MemoDialog(m_workspacePath, nullptr);
+        dlg->selectFile(QDir::fromNativeSeparators(relPath));
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->setWindowModality(Qt::ApplicationModal);
+        dlg->show();
     }
 }

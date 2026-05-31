@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="moji.png">../moji.png</file>
+        <file>mathjax.html</file>
+    </qresource>
+</RCC>

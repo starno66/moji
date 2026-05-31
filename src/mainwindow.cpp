@@ -7,9 +7,11 @@
 #include "commitdetailwidget.h"
 #include "environmentsetupdialog.h"
 #include "aidialog.h"
+#include "memodialog.h"
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QBoxLayout>
 #include <QFileDialog>      // 选择文件夹对话框
 #include <QProcess>
 #include <QInputDialog>     // 输入文本对话框
@@ -54,6 +56,22 @@ MainWindow::MainWindow(QWidget *parent)
     // 第4步：用代码创建菜单栏
     setupMenus();
 
+    // 添加随记按钮到回退按钮右侧（commitBtnLayout）
+    {
+        auto *btnLayout = ui->historyPanel->findChild<QHBoxLayout *>("commitBtnLayout");
+        if (btnLayout) {
+            m_memoBtn = new QPushButton("随记");
+            m_memoBtn->setObjectName("memoBtn");
+            m_memoBtn->setStyleSheet(
+                "QPushButton#memoBtn{background-color:#ffffff;color:#475569;"
+                "border:1px solid #cbd5e1;border-radius:8px;"
+                "padding:7px 18px;font-weight:600;}"
+                "QPushButton#memoBtn:hover{background-color:#f8fafc;"
+                "border-color:#94a3b8;}");
+            btnLayout->addWidget(m_memoBtn);
+        }
+    }
+
     // 第5步：连接所有信号槽
     connectSignals();
 
@@ -91,6 +109,7 @@ MainWindow::MainWindow(QWidget *parent)
         ui->renameChapterBtn->setEnabled(false);
         ui->deleteChapterBtn->setEnabled(false);
         ui->commitBtn->setEnabled(false);
+        if (m_memoBtn) m_memoBtn->setEnabled(false);
     }
 
 }
@@ -429,6 +448,8 @@ void MainWindow::connectSignals()
             this, [this](int){ onSwitchBranch(); });
     connect(m_mergeBtn, &QPushButton::clicked,
             this, &MainWindow::onMergeBranch);
+    connect(m_memoBtn, &QPushButton::clicked,
+            this, &MainWindow::onOpenMemo);
 }
 
 QString MainWindow::branchTaggedMessage(const QString &base) const
@@ -537,6 +558,7 @@ bool MainWindow::openWorkspace(const QString &path)
     // 启用按钮
     ui->newChapterBtn->setEnabled(true);
     ui->commitBtn->setEnabled(true);
+    if (m_memoBtn) m_memoBtn->setEnabled(true);
 
     setWindowTitle(QString("墨迹 - %1").arg(path));
     statusBar()->showMessage(QString("已打开: %1").arg(path), 3000);
@@ -891,6 +913,7 @@ void MainWindow::refreshChapters()
     QDir dir(m_workspacePath);
     QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     entries.removeAll(".git");
+    entries.removeAll(".moji");
 
     // 更新章节列表 Model
     m_chapterModel->setChapters(entries);
@@ -963,7 +986,7 @@ void MainWindow::updateStatusBar()
     QDir wsDir(m_workspacePath);
     QStringList dirs = wsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString &d : dirs) {
-        if (d == ".git") continue;
+        if (d == ".git" || d == ".moji") continue;
         if (m_gitManager->hasUncommittedChanges(d))
             dirtySet.insert(d);
     }
@@ -986,4 +1009,14 @@ void MainWindow::onSetFontScale(int scale)
 {
     QSettings().setValue("ui/fontScale", scale);
     qApp->setStyleSheet(makeStyleSheet(scale));
+}
+
+void MainWindow::onOpenMemo()
+{
+    auto *dlg = new MemoDialog(m_workspacePath, m_gitManager, nullptr);
+    if (!m_currentChapter.isEmpty())
+        dlg->selectFile(m_currentChapter);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setWindowModality(Qt::ApplicationModal);
+    dlg->show();
 }

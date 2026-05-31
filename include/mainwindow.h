@@ -51,6 +51,9 @@ private slots:
     // ====== 文件监控 ======
     void onExternalFileChanged(const QString &path);
 
+    // ====== 随记 ======
+    void onOpenMemo();
+
     // ====== 查看菜单 ======
     void onSetFontScale(int scale);
 
@@ -90,6 +93,7 @@ private:
     QComboBox   *m_branchCombo;
     QPushButton *m_newBranchBtn;
     QPushButton *m_mergeBtn;
+    QPushButton *m_memoBtn;
 
     // ---------- 定时器 ----------
     QTimer *m_pollTimer;
